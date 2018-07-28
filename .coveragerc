@@ -1,0 +1,3 @@
+[run]
+source = samba4_manager
+omit = samba4_manager/test*

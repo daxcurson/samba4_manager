@@ -1,0 +1,15 @@
+<html>
+<head>
+<title>Lista de usuarios</title>
+<link rel="stylesheet"
+          href="{{ request.static_url('samba4_manager:static/sb-admin.css') }}"/>
+</head>
+<body>
+<h1>Lista de usuarios</h1>
+<ul>
+{% for user in usuarios %}
+  <li>{{ user.user }}</li>
+{% endfor %}
+</ul>
+</body>
+</html>
