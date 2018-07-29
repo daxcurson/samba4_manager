@@ -16,6 +16,7 @@ requires = [
     'pyramid_debugtoolbar',
     'waitress',
     'colander',
+    'secureconfig'
 ]
 
 tests_require = [

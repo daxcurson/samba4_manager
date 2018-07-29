@@ -4,15 +4,24 @@ import samba
 from samba import param
 from samba.samdb import SamDB
 from samba.credentials import Credentials
+from secureconfig.secureconfigparser import SecureConfigParser
+from secureconfig import SecureString
 
 class SambaServer(object):
-#    def __init__(self):
+    def __init__(self):
+        # Read the configuration file and store its values in memory.
+        config=SecureConfigParser.from_file("/etc/httpd/conf.d/key.txt")
+        config.read("/etc/httpd/conf.d/secret.txt")
+        self.username=SecureString(config.get('credentials','username'))
+        self.password=SecureString(config.get('credentials','password'))
+        
     def conectar(self):
         lp=param.LoadParm()
         badge = Credentials()
         badge.guess(lp)
-        badge.set_username('Administrator')
-        badge.set_password('SuperSecret9898@')
+        
+        badge.set_username(self.username)
+        badge.set_password(self.password)
         cx = SamDB(url='ldap://localhost',lp=lp,credentials=badge)
         return cx
     def listar_usuarios(self):
