@@ -14,6 +14,7 @@ class SambaServer(object):
         config.read("/etc/httpd/conf.d/secret.txt")
         self.username=SecureString(config.get('credentials','username'))
         self.password=SecureString(config.get('credentials','password'))
+        self.domain=config.get('credentials','domain')
         
     def conectar(self):
         lp=param.LoadParm()
@@ -28,7 +29,7 @@ class SambaServer(object):
         # Aca se conectaria con el server en localhost y devolveria la lista de usuarios.
         # Search...
         cx=self.conectar()
-        search_result = cx.search('DC=agusvillafane,DC=zapto,DC=org',scope=2,expression='(objectClass=user)',attrs=["samaccountname"])
+        search_result = cx.search(self.domain,scope=2,expression='(objectClass=user)',attrs=["samaccountname"])
         # Results...
         usuarios=[]
         for username in search_result:
