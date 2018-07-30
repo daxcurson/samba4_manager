@@ -29,9 +29,26 @@ class SambaServer(object):
         # Aca se conectaria con el server en localhost y devolveria la lista de usuarios.
         # Search...
         cx=self.conectar()
-        search_result = cx.search(self.domain,scope=2,expression='(objectClass=user)',attrs=["samaccountname"])
+        search_result = cx.search(self.domain,scope=2,expression='(objectClass=user)',attrs=["samaccountname","description","dn","objectguid"])
         # Results...
         usuarios=[]
         for username in search_result:
-            usuarios.append({'user':username.get("samaccountname",idx=0)})
+            usuarios.append({'user':username.get("samaccountname",idx=0),'description':username.get("description",idx=0),'dn':username.get("dn",idx=0),'objectguid':username.get("objectguid",idx=0)})
         return usuarios
+    def listar_grupos(self):
+        cx=self.conectar()
+        search_result=cx.search(self.domain,scope=2,expression="(objectClass=group)",attrs=["samaccountname","description","dn","objectguid"])
+        # Obtengo los resultados
+        grupos=[]
+        for grupo in search_result:
+            grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0)})
+        return grupos
+    def get_object(self,objectguid):
+        # Dado el dn de un objeto, buscar todas sus propiedades.
+        # La gracia es no listar todas las propiedades sino listarlas por reflection.
+        cx=self.conectar()
+        search_result=cx.search(self.domain,scope=2,expression="(objectguid="+objectguid+")")
+        objeto=[]
+        for propiedad in search_result.__dict__.keys():
+            objeto.append({propiedad:search_result.__dict__[propiedad]})
+        return objeto

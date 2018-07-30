@@ -1,0 +1,39 @@
+{% extends "base.jinja2" %}
+{% block breadcrumb_items %}
+	{{ super() }}
+{% endblock %}
+{% block breadcrumb_active_item %}
+            <li class="breadcrumb-item active">Grupos</li>
+{% endblock %}
+{% block sidebar_groups %}active{% endblock %}
+{% block content %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <i class="fas fa-table"></i>
+              Group list <form class="d-none d-md-inline-block form-inline ml-auto mr-0 mr-md-3 my-2 my-md-0" action="/add_user"><button class="btn btn-primary" type="button" alt="Add Group"><i class="fas fa-users"></i><i class="fas fa-plus"></i></form>
+            </button>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                  <thead>
+                    <tr><th><i class="fas fa-cog"></i></th><th>Group name</th><th>Description</th><th>Distinguished Name</th></tr>
+                  </thead>
+                  <tfoot>
+                    <tr><th>Group name</th><th>Description</th><th>Distinguished Name</th></tr>
+                  </tfoot>
+                  <tbody>
+                        {% for group in grupos %}
+                    <tr>
+                        <td>{{ group.group }}</td>
+                        <td>{{ group.description }}</td>
+                        <td>{{ group.dn }}</td>
+                    </tr>
+                        {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card-footer small text-muted">La consulta tard&oacute; {{ "%.2f"|format(intervalo) }} segundos</div>
+          </div>
+{% endblock %}

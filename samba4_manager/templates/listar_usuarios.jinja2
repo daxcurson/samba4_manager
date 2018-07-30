@@ -5,34 +5,36 @@
 {% block breadcrumb_active_item %}
             <li class="breadcrumb-item active">Usuarios</li>
 {% endblock %}
+{% block sidebar_users %}active{% endblock %}
 {% block content %}
           <div class="card mb-3">
             <div class="card-header">
               <i class="fas fa-table"></i>
-              User list</div>
+              User list <form class="d-none d-md-inline-block form-inline ml-auto mr-0 mr-md-3 my-2 my-md-0" action="/add_user"><button class="btn btn-primary" type="button" alt="Add User"><i class="fas fa-user-plus"></i></form>
+            </button>
+            </div>
             <div class="card-body">
               <div class="table-responsive">
                 <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                   <thead>
-                    <tr>
-                      <th>User name</th>
-                    </tr>
+                    <tr><th><i class="fas fa-cog"></i></th><th>User name</th><th>Description</th><th>Distinguished Name</th></tr>
                   </thead>
                   <tfoot>
-                    <tr>
-                      <th>User name</th>
-                    </tr>
+                    <tr><th>User name</th><th>Description</th><th>Distinguished Name</th></tr>
                   </tfoot>
                   <tbody>
                         {% for user in usuarios %}
                     <tr>
+                    	<td><a href="{{ request.route_path('editar_usuario',objectguid=user.objectguid) }}"><i class="fas fa-edit"></i></a></td>
                         <td>{{ user.user }}</td>
+                        <td>{{ user.description }}</td>
+                        <td>{{ user.dn }}</td>
                     </tr>
                         {% endfor %}
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="card-footer small text-muted">Updated yesterday at 11:59 PM</div>
+            <div class="card-footer small text-muted">La consulta tard&oacute; {{ "%.2f"|format(intervalo) }} segundos</div>
           </div>
 {% endblock %}
