@@ -10,3 +10,9 @@ class User(colander.MappingSchema):
 class Group(colander.MappingSchema):
     groupname=colander.SchemaNode(colander.String())
     description=colander.SchemaNode(colander.String())
+
+class Users(colander.SequenceSchema):
+    user=User()
+
+class Schema(colander.MappingSchema):
+    users=Users()

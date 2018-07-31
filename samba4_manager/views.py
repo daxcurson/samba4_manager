@@ -1,11 +1,9 @@
-import colander
 import time
 from samba_server import SambaServer
 from pyramid.view import view_config
-
-class UserEditForm(colander.MappingSchema):
-    title = colander.SchemaNode(colander.String())
-    body = colander.SchemaNode(colander.String())
+from samba4_manager.model import User
+import deform
+from deform.exception import ValidationFailure
 
 class SambaAdminViews(object):
     def __init__(self, request):
@@ -30,12 +28,25 @@ class SambaAdminViews(object):
         end=time.time()
         intervalo=end-start
         return { 'grupos':grupos,'intervalo':intervalo }
+    
+    @property
+    def edit_user_form(self):
+        schema=User()
+        return deform.Form(schema,buttons=('submit',))
     @view_config(route_name='editar_usuario',renderer='templates/editar_usuario.jinja2')
     def editar_usuario(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
-        start=time.time()
         server=SambaServer()
         usuario=server.get_object(objectguid)
-        end=time.time()
-        intervalo=end-start
-        return {'intervalo':intervalo,'usuario':usuario}
+        f=self.edit_user_form
+        template_values={}
+        template_values.update(f.get_widget_resources())
+        if 'submit' in self.request.POST:
+            controls=self.request.POST.items()
+            try:
+                f.validate(controls)
+            except ValidationFailure as e:
+                template_values['form']=e.render()
+            return template_values
+        template_values['form']=f.render()
+        return template_values
