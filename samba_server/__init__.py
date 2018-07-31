@@ -1,6 +1,7 @@
 # Loading...
 import ldb
 import samba
+import uuid
 from samba import param
 from samba.samdb import SamDB
 from samba.credentials import Credentials
@@ -33,7 +34,9 @@ class SambaServer(object):
         # Results...
         usuarios=[]
         for username in search_result:
-            usuarios.append({'user':username.get("samaccountname",idx=0),'description':username.get("description",idx=0),'dn':username.get("dn",idx=0),'objectguid':username.get("objectguid",idx=0)})
+            objectguid=username.get('objectguid',idx=0)
+            guidhex=uuid.UUID(bytes=objectguid)
+            usuarios.append({'user':username.get("samaccountname",idx=0),'description':username.get("description",idx=0),'dn':username.get("dn",idx=0),'objectguid':username.get("objectguid",idx=0),'key':str(guidhex.hex)})
         return usuarios
     def listar_grupos(self):
         cx=self.conectar()
@@ -49,6 +52,6 @@ class SambaServer(object):
         cx=self.conectar()
         search_result=cx.search(self.domain,scope=2,expression="(objectguid="+objectguid+")")
         objeto=[]
-        for propiedad in search_result.__dict__.keys():
-            objeto.append({propiedad:search_result.__dict__[propiedad]})
+        for propiedad in dir(search_result):
+            objeto.append({propiedad:getattr(search_result,propiedad)})
         return objeto

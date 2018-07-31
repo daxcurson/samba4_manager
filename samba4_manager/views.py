@@ -32,7 +32,7 @@ class SambaAdminViews(object):
         return { 'grupos':grupos,'intervalo':intervalo }
     @view_config(route_name='editar_usuario',renderer='templates/editar_usuario.jinja2')
     def editar_usuario(self):
-        objectguid=self.request.matchdict['objectguid']
+        objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         start=time.time()
         server=SambaServer()
         usuario=server.get_object(objectguid)

@@ -1,4 +1,5 @@
 {% extends "base.jinja2" %}
+{% block page_title %}Samba4 Manager - Users{%endblock%}
 {% block breadcrumb_items %}
 	{{ super() }}
 {% endblock %}
@@ -20,12 +21,12 @@
                     <tr><th><i class="fas fa-cog"></i></th><th>User name</th><th>Description</th><th>Distinguished Name</th></tr>
                   </thead>
                   <tfoot>
-                    <tr><th>User name</th><th>Description</th><th>Distinguished Name</th></tr>
+                    <tr><th><i class="fas fa-cog"></i></th><th>User name</th><th>Description</th><th>Distinguished Name</th></tr>
                   </tfoot>
                   <tbody>
                         {% for user in usuarios %}
                     <tr>
-                    	<td><a href="{{ request.route_path('editar_usuario',objectguid=user.objectguid) }}"><i class="fas fa-edit"></i></a></td>
+                    	<td><a href="{{ request.route_path('editar_usuario',objectguid=user.key) }}"><i class="fas fa-edit"></i></a></td>
                         <td>{{ user.user }}</td>
                         <td>{{ user.description }}</td>
                         <td>{{ user.dn }}</td>
