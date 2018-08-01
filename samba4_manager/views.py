@@ -1,9 +1,9 @@
 import time
+import pyramid.httpexceptions
 from samba_server import SambaServer
 from pyramid.view import view_config
 from samba4_manager.model import User
-import deform
-from deform.exception import ValidationFailure
+from samba4_manager.model import UserForm, User
 
 class SambaAdminViews(object):
     def __init__(self, request):
@@ -29,24 +29,25 @@ class SambaAdminViews(object):
         intervalo=end-start
         return { 'grupos':grupos,'intervalo':intervalo }
     
-    @property
-    def edit_user_form(self):
-        schema=User()
-        return deform.Form(schema,buttons=('submit',))
+    def form_edit_user(self,req):
+        return UserForm(req.POST)
+    @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2')
+    def agregar_usuario(self):
+        form=self.form_edit_user(self.request.POST)
+        if self.request.method=='POST' and form.validate():
+            user=User()
+            user.samaccountname=form.samaccountname.data
+            user.dn=form.dn.data
+            # Aqui hay que grabar
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
+        return {'form':form}
     @view_config(route_name='editar_usuario',renderer='templates/editar_usuario.jinja2')
     def editar_usuario(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
         usuario=server.get_object(objectguid)
-        f=self.edit_user_form
-        template_values={}
-        template_values.update(f.get_widget_resources())
-        if 'submit' in self.request.POST:
-            controls=self.request.POST.items()
-            try:
-                f.validate(controls)
-            except ValidationFailure as e:
-                template_values['form']=e.render()
-            return template_values
-        template_values['form']=f.render()
-        return template_values
+        form=self.form_edit_user(self.request.POST,usuario)
+        if self.request.method=='POST' and form.validate():
+            form.populate_obj(usuario)
+            # Aca grabo el objeto en el samba
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))

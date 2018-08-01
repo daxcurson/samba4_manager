@@ -1,18 +1,11 @@
-import colander
+from wtforms import Form, BooleanField, StringField, validators
 
-class User(colander.MappingSchema):
-    username=colander.SchemaNode(colander.String())
-    password=colander.SchemaNode(colander.String())
-    password_confirm=colander.SchemaNode(colander.String())
-    description=colander.SchemaNode(colander.String())
-    active=colander.SchemaNode(colander.Boolean())
-    
-class Group(colander.MappingSchema):
-    groupname=colander.SchemaNode(colander.String())
-    description=colander.SchemaNode(colander.String())
+class UserForm(Form):
+    samaccountname     = StringField('SamAccountName', [validators.Length(min=4, max=25)])
+    dn= StringField('Distinguished Name', [validators.Length(min=6, max=500)])
+    enabled= BooleanField('Enabled', [validators.InputRequired()])
 
-class Users(colander.SequenceSchema):
-    user=User()
-
-class Schema(colander.MappingSchema):
-    users=Users()
+class User(object):
+    def __init__(self,accountname,dist_name):
+        self.samaccountname=accountname
+        self.dn=dist_name
