@@ -6,6 +6,6 @@ class UserForm(Form):
     enabled= BooleanField('Enabled', [validators.InputRequired()])
 
 class User(object):
-    def __init__(self,accountname,dist_name):
+    def __init__(self,accountname="",dist_name=""):
         self.samaccountname=accountname
         self.dn=dist_name

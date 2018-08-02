@@ -2,9 +2,11 @@
 import ldb
 import samba
 import uuid
+import base64
 from samba import param
 from samba.samdb import SamDB
 from samba.credentials import Credentials
+from samba4_manager.model import User
 from secureconfig.secureconfigparser import SecureConfigParser
 from secureconfig import SecureString
 
@@ -36,7 +38,8 @@ class SambaServer(object):
         for username in search_result:
             objectguid=username.get('objectguid',idx=0)
             guidhex=uuid.UUID(bytes=objectguid)
-            usuarios.append({'user':username.get("samaccountname",idx=0),'description':username.get("description",idx=0),'dn':username.get("dn",idx=0),'objectguid':username.get("objectguid",idx=0),'key':str(guidhex.hex)})
+            assert guidhex.bytes==objectguid
+            usuarios.append({'user':username.get("samaccountname",idx=0),'description':username.get("description",idx=0),'dn':username.get("dn",idx=0),'objectguid':username.get("objectguid",idx=0),'key':guidhex.hex})
         return usuarios
     def listar_grupos(self):
         cx=self.conectar()
@@ -46,12 +49,17 @@ class SambaServer(object):
         for grupo in search_result:
             grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0)})
         return grupos
-    def get_object(self,objectguid):
+    def get_object(self,objectg):
         # Dado el dn de un objeto, buscar todas sus propiedades.
         # La gracia es no listar todas las propiedades sino listarlas por reflection.
         cx=self.conectar()
-        search_result=cx.search(self.domain,scope=2,expression="(objectguid="+objectguid+")")
-        objeto=[]
-        for propiedad in dir(search_result):
-            objeto.append({propiedad:getattr(search_result,propiedad)})
+        guidhex=uuid.UUID(hex=objectg)
+        # Me gustaria tomarme el credito pero no puedo, esa busqueda
+        # salio del codigo fuente mismo de Samba,
+        # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
+        search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
+        objeto=User()
+        for resultado in search_result:
+            objeto.dn=resultado.get("dn",idx=0)
+            objeto.samaccountname=resultado.get("samaccountname",idx=0)
         return objeto

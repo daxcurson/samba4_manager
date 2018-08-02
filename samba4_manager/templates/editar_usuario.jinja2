@@ -1,4 +1,5 @@
 {% extends "base.jinja2" %}
+{% block page_title %}Samba4 Manager - Edit users{%endblock%}
 {% block breadcrumb_items %}
 	{{ super() }}
     <li class="breadcrumb-item">
@@ -10,5 +11,8 @@
 {% endblock %}
 {% block sidebar_users %}active{% endblock %}
 {% block content %}
-
+<form method="POST" action="{{ request.route_path('editar_usuario_grabar_form') }}">
+<div>{{ form.dn.label }}: {{ form.dn(class="css_class")}}</div>
+<div>{{ form.samaccountname.label }}: {{ form.samaccountname(class="css_class")}}</div>
+</form>
 {% endblock %}

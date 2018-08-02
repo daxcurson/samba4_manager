@@ -26,7 +26,7 @@
                   <tbody>
                         {% for user in usuarios %}
                     <tr>
-                    	<td><a href="{{ request.route_path('editar_usuario',objectguid=user.key) }}"><i class="fas fa-edit"></i></a></td>
+                    	<td><a href="{{ request.route_path('editar_usuario_mostrar_form',objectguid=user.key) }}"><i class="fas fa-edit"></i></a></td>
                         <td>{{ user.user }}</td>
                         <td>{{ user.description }}</td>
                         <td>{{ user.dn }}</td>

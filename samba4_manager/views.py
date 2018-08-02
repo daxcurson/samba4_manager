@@ -29,8 +29,8 @@ class SambaAdminViews(object):
         intervalo=end-start
         return { 'grupos':grupos,'intervalo':intervalo }
     
-    def form_edit_user(self,req):
-        return UserForm(req.POST)
+    def form_edit_user(self,req_post,usuario):
+        return UserForm(req_post,usuario)
     @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2')
     def agregar_usuario(self):
         form=self.form_edit_user(self.request.POST)
@@ -41,13 +41,24 @@ class SambaAdminViews(object):
             # Aqui hay que grabar
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
         return {'form':form}
-    @view_config(route_name='editar_usuario',renderer='templates/editar_usuario.jinja2')
-    def editar_usuario(self):
+    @view_config(route_name='editar_usuario_mostrar_form',renderer='templates/editar_usuario.jinja2')
+    def editar_usuario_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
         usuario=server.get_object(objectguid)
+        print(usuario.dn)
         form=self.form_edit_user(self.request.POST,usuario)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(usuario)
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
+        return {'form':form}
+    @view_config(route_name='editar_usuario_grabar_form',renderer='templates/editar_usuario.jinja2')
+    def editar_usuario_grabar_form(self):
+        usuario=()
+        form=self.form_edit_user(self.request.POST, usuario)
+        if self.request_method=='POST' and form.validate():
+            form.populate(usuario)
+            # Aca grabo el objeto en el samba
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
+        return {'form':form}
