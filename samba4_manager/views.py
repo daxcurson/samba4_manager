@@ -30,7 +30,12 @@ class SambaAdminViews(object):
         return { 'grupos':grupos,'intervalo':intervalo }
     
     def form_edit_user(self,req_post,usuario):
-        return UserForm(req_post,usuario)
+        # Cargo los valores en el formulario
+        form=UserForm(req_post,usuario)
+        form.enabled.data=usuario.enabled
+        if(usuario.account_type=="Normal"):
+            form.account_type.data="normal_account"
+        return form
     @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2')
     def agregar_usuario(self):
         form=self.form_edit_user(self.request.POST)
@@ -46,7 +51,6 @@ class SambaAdminViews(object):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
         usuario=server.get_object(objectguid)
-        print(usuario.dn)
         form=self.form_edit_user(self.request.POST,usuario)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(usuario)

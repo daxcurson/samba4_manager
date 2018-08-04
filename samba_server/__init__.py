@@ -4,6 +4,7 @@ import samba
 import uuid
 import base64
 from samba import param
+from samba import dsdb, dsdb_dns
 from samba.samdb import SamDB
 from samba.credentials import Credentials
 from samba4_manager.model import User
@@ -49,17 +50,35 @@ class SambaServer(object):
         for grupo in search_result:
             grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0)})
         return grupos
-    def get_object(self,objectg):
-        # Dado el dn de un objeto, buscar todas sus propiedades.
-        # La gracia es no listar todas las propiedades sino listarlas por reflection.
+    def search_entry(self,objectg):
         cx=self.conectar()
         guidhex=uuid.UUID(hex=objectg)
         # Me gustaria tomarme el credito pero no puedo, esa busqueda
         # salio del codigo fuente mismo de Samba,
         # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
         search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
+        return search_result
+    def get_object(self,objectg):
+        # Dado el dn de un objeto, buscar todas sus propiedades.
+        # La gracia es no listar todas las propiedades sino listarlas por reflection.
+        search_result=self.search_entry(objectg)
         objeto=User()
         for resultado in search_result:
             objeto.dn=resultado.get("dn",idx=0)
             objeto.samaccountname=resultado.get("samaccountname",idx=0)
+            objeto.enabled=True
+            userAccountFlags=int(resultado.get("userAccountControl",idx=0))
+            print(userAccountFlags)
+            print(samba.dsdb.UF_ACCOUNTDISABLE)
+            print(samba.dsdb.UF_NORMAL_ACCOUNT)
+            if( ( userAccountFlags & samba.dsdb.UF_ACCOUNTDISABLE)==samba.dsdb.UF_ACCOUNTDISABLE ):
+                objeto.enabled=False
+            if( (userAccountFlags & samba.dsdb.UF_NORMAL_ACCOUNT)==samba.dsdb.UF_NORMAL_ACCOUNT):
+                objeto.account_type="Normal"
+            print(objeto.enabled)
         return objeto
+    def get_account_flags(self,objectg):
+        # Dado el objectguid de un objeto, voy y busco sus UserAccountFlags,
+        # que pueden ser Disabled, Force logon, machine trust account, etc, etc, etc.
+        search_result=self.search_entry(objectg)
+        # Los flags vienen en el atributo userAccountControl.

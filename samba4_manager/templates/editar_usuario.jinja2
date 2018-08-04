@@ -12,7 +12,31 @@
 {% block sidebar_users %}active{% endblock %}
 {% block content %}
 <form method="POST" action="{{ request.route_path('editar_usuario_grabar_form') }}">
-<div>{{ form.dn.label }}: {{ form.dn(class="css_class")}}</div>
-<div>{{ form.samaccountname.label }}: {{ form.samaccountname(class="css_class")}}</div>
+<div class="form-group row">
+	{{ form.dn.label(class="col-sm-2 col-form-label") }}
+	<div class="col-sm-10">
+		{{ form.dn(class="form-control")}}
+	</div>
+</div>
+<div class="form-group row">
+	{{ form.samaccountname.label(class="col-sm-2 col-form-label") }}
+	<div class="col-sm-10">
+		{{ form.samaccountname(class="form-control")}}
+	</div>
+</div>
+<div class="form-group row">
+	<div class="col-sm-2">Account Flags</div>
+	<div class="col-sm-10">
+		<div class="form-check">
+			{{ form.enabled(class="form-check-input") }} {{ form.enabled.label(class="form-check-label") }}
+		</div>
+		{% for subfield in form.account_type %}
+			<div class="form-check">
+				{{ subfield(class="form-check-input") }}
+				{{ subfield.label(class="form-check-label") }}
+			</div>
+		{% endfor %}
+	</div>
+</div>
 </form>
 {% endblock %}
