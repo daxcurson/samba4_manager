@@ -1,0 +1,42 @@
+{% extends "base.jinja2" %}
+{% block page_title %}Samba4 Manager - Edit computers{%endblock%}
+{% block breadcrumb_items %}
+	{{ super() }}
+    <li class="breadcrumb-item">
+        <a href="{{ request.route_path('listar_computadoras') }}">Computadoras</a>
+    </li>
+{% endblock %}
+{% block breadcrumb_active_item %}
+            <li class="breadcrumb-item active">Editar Computadora</li>
+{% endblock %}
+{% block sidebar_computers %}active{% endblock %}
+{% block content %}
+<form method="POST" action="{{ request.route_path('editar_computadora_grabar_form') }}">
+<div class="form-group row">
+	{{ form.dn.label(class="col-sm-2 col-form-label") }}
+	<div class="col-sm-10">
+		{{ form.dn(class="form-control")}}
+	</div>
+</div>
+<div class="form-group row">
+	{{ form.samaccountname.label(class="col-sm-2 col-form-label") }}
+	<div class="col-sm-10">
+		{{ form.samaccountname(class="form-control")}}
+	</div>
+</div>
+<div class="form-group row">
+	<div class="col-sm-2">Account Flags</div>
+	<div class="col-sm-10">
+		<div class="form-check">
+			{{ form.enabled(class="form-check-input") }} {{ form.enabled.label(class="form-check-label") }}
+		</div>
+		{% for subfield in form.account_type %}
+			<div class="form-check">
+				{{ subfield(class="form-check-input") }}
+				{{ subfield.label(class="form-check-label") }}
+			</div>
+		{% endfor %}
+	</div>
+</div>
+</form>
+{% endblock %}

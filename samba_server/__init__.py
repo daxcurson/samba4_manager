@@ -33,13 +33,12 @@ class SambaServer(object):
         # Aca se conectaria con el server en localhost y devolveria la lista de usuarios.
         # Search...
         cx=self.conectar()
-        search_result = cx.search(self.domain,scope=2,expression='(objectClass=user)',attrs=["samaccountname","description","dn","objectguid"])
+        search_result = cx.search(self.domain,scope=2,expression='(&(objectCategory=person)(objectClass=user))',attrs=["samaccountname","description","dn","objectguid"])
         # Results...
         usuarios=[]
         for username in search_result:
             objectguid=username.get('objectguid',idx=0)
             guidhex=uuid.UUID(bytes=objectguid)
-            assert guidhex.bytes==objectguid
             usuarios.append({'user':username.get("samaccountname",idx=0),'description':username.get("description",idx=0),'dn':username.get("dn",idx=0),'objectguid':username.get("objectguid",idx=0),'key':guidhex.hex})
         return usuarios
     def listar_grupos(self):
@@ -48,8 +47,20 @@ class SambaServer(object):
         # Obtengo los resultados
         grupos=[]
         for grupo in search_result:
-            grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0)})
+            objectguid=grupo.get('objectguid',idx=0)
+            guidhex=uuid.UUID(bytes=objectguid)
+            grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0),'key':guidhex.hex})
         return grupos
+    def listar_computadoras(self):
+        cx=self.conectar()
+        search_result=cx.search(self.domain,scope=2,expression="(objectClass=computer)",attrs=["samaccountname","description","dn","objectguid"])
+        # Obtengo resultados
+        computadoras=[]
+        for computadora in search_result:
+            objectguid=computadora.get('objectguid',idx=0)
+            guidhex=uuid.UUID(bytes=objectguid)
+            computadoras.append({'samaccountname':computadora.get("samaccountname",idx=0),'description':computadora.get("description",idx=0),'dn':computadora.get("dn",idx=0),'objectguid':computadora.get("objectguid",idx=0),'key':guidhex.hex})
+        return computadoras
     def search_entry(self,objectg):
         cx=self.conectar()
         guidhex=uuid.UUID(hex=objectg)
@@ -68,13 +79,40 @@ class SambaServer(object):
             objeto.samaccountname=resultado.get("samaccountname",idx=0)
             objeto.enabled=True
             userAccountFlags=int(resultado.get("userAccountControl",idx=0))
-            print(userAccountFlags)
-            print(samba.dsdb.UF_ACCOUNTDISABLE)
-            print(samba.dsdb.UF_NORMAL_ACCOUNT)
+            print("Las accountflags de esta cuenta son: %d" % userAccountFlags)
+            print("Valores de los Account Flags:")
+            print("UF_SCRIPT: %d" % samba.dsdb.UF_SCRIPT)
+            print("UF_ACCOUNTDISABLE: %d" % samba.dsdb.UF_ACCOUNTDISABLE)
+            print("UF_HOMEDIR_REQUIRED: %d" % samba.dsdb.UF_HOMEDIR_REQUIRED)
+            print("UF_LOCKOUT: %d" % samba.dsdb.UF_LOCKOUT)
+            print("UF_PASSWD_NOTREQD: %d" % samba.dsdb.UF_PASSWD_NOTREQD)
+            print("UF_PASSWD_CANT_CHANGE: %d" % samba.dsdb.UF_PASSWD_CANT_CHANGE)
+            print("UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED: %d" % samba.dsdb.UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED)
+            print("UF_TEMP_DUPLICATE_ACCOUNT: %d" % samba.dsdb.UF_TEMP_DUPLICATE_ACCOUNT)
+            print("UF_NORMAL_ACCOUNT: %d" % samba.dsdb.UF_NORMAL_ACCOUNT)
+            print("UF_INTERDOMAIN_TRUST_ACCOUNT: %d" % samba.dsdb.UF_INTERDOMAIN_TRUST_ACCOUNT)
+            print("UF_WORKSTATION_TRUST_ACCOUNT: %d" % samba.dsdb.UF_WORKSTATION_TRUST_ACCOUNT)
+            print("UF_SERVER_TRUST_ACCOUNT: %d" % samba.dsdb.UF_SERVER_TRUST_ACCOUNT)
+            print("UF_DONT_EXPIRE_PASSWD: %d" % samba.dsdb.UF_DONT_EXPIRE_PASSWD)
+            print("UF_MNS_LOGON_ACCOUNT: %d" % samba.dsdb.UF_MNS_LOGON_ACCOUNT)
+            print("UF_SMARTCARD_REQUIRED: %d" % samba.dsdb.UF_SMARTCARD_REQUIRED)
+            print("UF_TRUSTED_FOR_DELEGATION: %d" % samba.dsdb.UF_TRUSTED_FOR_DELEGATION)
+            print("UF_NOT_DELEGATED: %d" % samba.dsdb.UF_NOT_DELEGATED)
+            print("UF_USE_DES_KEY_ONLY: %d" % samba.dsdb.UF_USE_DES_KEY_ONLY)
+            print("UF_DONT_REQUIRE_PREAUTH: %d" % samba.dsdb.UF_DONT_REQUIRE_PREAUTH)
+            print("UF_PASSWORD_EXPIRED: %d" % samba.dsdb.UF_PASSWORD_EXPIRED)
+            print("UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION: %d" % samba.dsdb.UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION)
+            print("UF_NO_AUTH_DATA_REQUIRED: %d" % samba.dsdb.UF_NO_AUTH_DATA_REQUIRED)
+            print("UF_PARTIAL_SECRETS_ACCOUNT: %d" % samba.dsdb.UF_PARTIAL_SECRETS_ACCOUNT)
+            print("UF_USE_AES_KEYS: %d" % samba.dsdb.UF_USE_AES_KEYS)
             if( ( userAccountFlags & samba.dsdb.UF_ACCOUNTDISABLE)==samba.dsdb.UF_ACCOUNTDISABLE ):
                 objeto.enabled=False
             if( (userAccountFlags & samba.dsdb.UF_NORMAL_ACCOUNT)==samba.dsdb.UF_NORMAL_ACCOUNT):
-                objeto.account_type="Normal"
+                objeto.account_type="normal_account"
+            if( (userAccountFlags & samba.dsdb.UF_WORKSTATION_TRUST_ACCOUNT)==samba.dsdb.UF_WORKSTATION_TRUST_ACCOUNT):
+                objeto.account_type="trust_account"
+            if( (userAccountFlags & samba.dsdb.UF_SERVER_TRUST_ACCOUNT)==samba.dsdb.UF_SERVER_TRUST_ACCOUNT):
+                objeto.account_type="server_account"
             print(objeto.enabled)
         return objeto
     def get_account_flags(self,objectg):
