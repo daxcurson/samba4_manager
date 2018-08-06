@@ -19,7 +19,22 @@ class SambaServer(object):
         self.username=SecureString(config.get('credentials','username'))
         self.password=SecureString(config.get('credentials','password'))
         self.domain=config.get('credentials','domain')
-        
+    def get_domain(self):
+        # Devuelve la string del dominio
+        return self.domain
+    def search_branch(self,rama=""):
+        # Busco todo lo que este debajo de rama. Si rama esta vacio, 
+        # dar lo dependiente del dominio.
+        cx=self.conectar()
+        if(rama==""):
+            rama=self.domain
+        search_result = cx.search(rama,scope=ldb.SCOPE_ONELEVEL,expression='',attrs=["dn","objectguid"])
+        hijos=[]
+        for hijo in search_result:
+            objectguid=hijo.get('objectguid',idx=0)
+            guidhex=uuid.UUID(bytes=objectguid)
+            hijos.append({'dn':hijo.get('dn',idx=0),'objectguid':hijo.get('objectguid',idx=0),'key':guidhex.hex})
+        return hijos
     def conectar(self):
         lp=param.LoadParm()
         badge = Credentials()

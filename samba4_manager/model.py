@@ -29,23 +29,26 @@ class GroupForm(Form):
         ("normal_account","Normal Account")
         ])
 
-class User(object):
-    def __init__(self,accountname="",dist_name=""):
-        self.samaccountname=accountname
+class ADObject(object):
+    def __init__(self,dist_name=""):
         self.dn=dist_name
+class User(ADObject):
+    def __init__(self,accountname="",dist_name=""):
+        super(User,self).__init__(dist_name)
+        self.samaccountname=accountname
         self.enabled=True
         self.account_type="normal_account"
 
-class Computer(object):
+class Computer(ADObject):
     def __init(self,accountname="",dist_name=""):
+        super(Computer,self).__init__(dist_name)
         self.samaccountname=accountname
-        self.dn=dist_name
         self.enabled=True
         self.account_type="trust_account"
 
-class Group(object):
+class Group(ADObject):
     def __init(self,accountname="",dist_name=""):
+        super(Group,self).__init__(dist_name)
         self.samaccountname=accountname
-        self.dn=dist_name
         self.enabled=True
         self.account_type="normal_account"

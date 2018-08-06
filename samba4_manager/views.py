@@ -126,3 +126,18 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
         return {'form':form}
+    @view_config(route_name='listar_avanzado',renderer="templates/listar_avanzado.jinja2")
+    def listar_avanzado(self):
+        # Tengo que pedir una lista inicial de los items de mayor nivel, para despues
+        # permitir que se despliegue e invocar al resto de los elementos.
+        # Asi que aca hago una lista de items sacado de una condicion de busqueda
+        # directa desde el raiz
+        server=SambaServer()
+        rama=server.search_branch("")
+        return {'rama':rama}
+    @view_config(route_name='listar_subrama')
+    def listar_subrama(self,renderer="json"):
+        objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
+        server=SambaServer()
+        hijos=server.search_branch(objectguid)
+        return hijos

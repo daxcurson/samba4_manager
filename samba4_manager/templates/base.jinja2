@@ -110,6 +110,12 @@
             <span>Computers</span>
           </a>
         </li>
+        <li class="nav-item {% block sidebar_advanced %}{% endblock %}">
+        	<a class="nav-link" href="{{ request.route_path('listar_avanzado') }}">
+        		<i class="fas fa-fw fa-superpowers"></i>
+        		<span>Advanced Editing</span>
+        	</a>
+        </li>
       </ul>
 
       <div id="content-wrapper">
@@ -171,6 +177,7 @@
       </div>
     </div>
 
+	{% block custom_scripts %}{% endblock %}
     <!-- Bootstrap core JavaScript-->
     <link href="{{ request.static_url('samba4_manager:static/sb-admin.css') }}" rel="stylesheet">
     <script src="{{ request.static_url('samba4_manager:static/vendor/jquery/jquery.min.js') }}"></script>
