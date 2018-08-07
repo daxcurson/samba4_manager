@@ -2,8 +2,8 @@ import time
 import pyramid.httpexceptions
 from samba_server import SambaServer
 from pyramid.view import view_config
-from samba4_manager.model import User, Computer
-from samba4_manager.model import UserForm, ComputerForm
+from samba4_manager.model import User, Computer, Group
+from samba4_manager.model import UserForm, ComputerForm, GroupForm
 
 class SambaAdminViews(object):
     def __init__(self, request):
@@ -134,10 +134,22 @@ class SambaAdminViews(object):
         # directa desde el raiz
         server=SambaServer()
         rama=server.search_branch("")
-        return {'rama':rama}
+        return {'rama':rama, 'raiz':server.get_domain()}
     @view_config(route_name='listar_subrama')
     def listar_subrama(self,renderer="json"):
-        objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
+        objectguid=self.request.matchdict['id'].encode(encoding='UTF-8')
         server=SambaServer()
         hijos=server.search_branch(objectguid)
-        return hijos
+        # Ahora bien, hay que devolver un formato esperado por esta cosa. 
+        json_return=self.convertir_a_json(hijos)
+        return json_return
+    def convertir_a_json(self,hijos):
+        # Pasamos a Json con el formato que requiere el jstree
+        lista_items=[]
+        for hijo in hijos:
+            item={
+                'id':hijo['objectguid'],
+                'text':hijo['dn']
+                }
+            lista_items.append(item)
+        return lista_items

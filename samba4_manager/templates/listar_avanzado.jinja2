@@ -8,9 +8,21 @@
 {% block sidebar_advanced %}active{% endblock %}
 {% block content %}
 <script type="text/javascript">
-document.ready(function()
+$(document).ready(function()
 {
-	$(function () { $('#advanced_tree').jstree(); });
+	$('#advanced_tree').jstree(
+	{
+		'core' : {
+			'data' : {
+				'url' : '{{ request.route_path('listar_subrama') }}',
+				'data' : function (node) 
+				{
+					return { 'id' : node.id };
+				}
+			}
+		}
+	}
+	);
 }
 );
 </script>
@@ -22,10 +34,18 @@ document.ready(function()
             </div>
             <div class="card-body">
             <div id="advanced_tree">
-            
+            <ul>
+            <li class="jstree-open">{{ raiz }}
+            <ul>
+            {% for item in rama %}
+            <li class="jstree-closed">{{ item['dn'] }}</li>
+            {% endfor %}
+            </ul>
+            </li>
+            </ul>
             </div>
             </div>
-            <div class="card-footer small text-muted">La consulta tard&oacute; {{ "%.2f"|format(intervalo) }} segundos</div>
+            <div class="card-footer small text-muted"></div>
           </div>
 {% endblock %}
 {% block custom_scripts%}

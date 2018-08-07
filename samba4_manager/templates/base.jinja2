@@ -26,6 +26,17 @@
   </head>
 
   <body id="page-top">
+    <!-- Bootstrap core JavaScript-->
+    <link href="{{ request.static_url('samba4_manager:static/sb-admin.css') }}" rel="stylesheet">
+    <script src="{{ request.static_url('samba4_manager:static/vendor/jquery/jquery.min.js') }}"></script>
+    <script src="{{ request.static_url('samba4_manager:static/vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+	{% block custom_scripts %}{% endblock %}
+
+    <!-- Core plugin JavaScript-->
+    <script src="{{ request.static_url('samba4_manager:static/vendor/jquery-easing/jquery.easing.min.js') }}"></script>
+
+    <!-- Custom scripts for all pages-->
+    <script src="{{ request.static_url('samba4_manager:static/sb-admin.min.js') }}"></script>
 
     <nav class="navbar navbar-expand navbar-dark bg-dark static-top">
 
@@ -177,17 +188,6 @@
       </div>
     </div>
 
-	{% block custom_scripts %}{% endblock %}
-    <!-- Bootstrap core JavaScript-->
-    <link href="{{ request.static_url('samba4_manager:static/sb-admin.css') }}" rel="stylesheet">
-    <script src="{{ request.static_url('samba4_manager:static/vendor/jquery/jquery.min.js') }}"></script>
-    <script src="{{ request.static_url('samba4_manager:static/vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
-
-    <!-- Core plugin JavaScript-->
-    <script src="{{ request.static_url('samba4_manager:static/vendor/jquery-easing/jquery.easing.min.js') }}"></script>
-
-    <!-- Custom scripts for all pages-->
-    <script src="{{ request.static_url('samba4_manager:static/sb-admin.min.js') }}"></script>
 
   </body>
 
