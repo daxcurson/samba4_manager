@@ -137,8 +137,11 @@ class SambaAdminViews(object):
         return {'rama':rama, 'raiz':server.get_domain()}
     @view_config(route_name='listar_subrama')
     def listar_subrama(self,renderer="json"):
-        objectguid=self.request.matchdict['id'].encode(encoding='UTF-8')
+        #objectguid=self.request.matchdict['id'].encode(encoding='UTF-8')
+        # Pido el valor del parametro id del request, y darle el valor
+        # del dominio si es que vino vacio
         server=SambaServer()
+        objectguid=self.request.params.get("id",server.get_domain())
         hijos=server.search_branch(objectguid)
         # Ahora bien, hay que devolver un formato esperado por esta cosa. 
         json_return=self.convertir_a_json(hijos)
