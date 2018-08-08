@@ -141,7 +141,11 @@ class SambaAdminViews(object):
         # Pido el valor del parametro id del request, y darle el valor
         # del dominio si es que vino vacio
         server=SambaServer()
-        objectguid=self.request.params.get("id",server.get_domain())
+        objectguid=self.request.params.get("id")
+        if(objectguid=="#"):
+            # Piden el nodo raiz. Hay que pedir el dominio y crear un nodo con eso.
+            nodo=server.get_domain()
+        padre=server.search_entry(objectguid)
         hijos=server.search_branch(objectguid)
         # Ahora bien, hay que devolver un formato esperado por esta cosa. 
         json_return=self.convertir_a_json(hijos)
