@@ -70,7 +70,7 @@ class SambaAdminViews(object):
     def editar_usuario_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
-        usuario=server.get_object(objectguid)
+        usuario=server.get_object_by_objectguid(objectguid)
         form=self.form_edit_user(self.request.POST,usuario)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(usuario)
@@ -90,7 +90,7 @@ class SambaAdminViews(object):
     def editar_computadora_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
-        computadora=server.get_object(objectguid)
+        computadora=server.get_object_by_objectguid(objectguid)
         form=self.form_edit_computer(self.request.POST,computadora)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(computadora)
@@ -110,7 +110,7 @@ class SambaAdminViews(object):
     def editar_grupo_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
-        grupo=server.get_object(objectguid)
+        grupo=server.get_object_by_objectguid(objectguid)
         form=self.form_edit_group(self.request.POST,grupo)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(grupo)

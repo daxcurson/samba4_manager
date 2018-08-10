@@ -22,16 +22,16 @@ class SambaServer(object):
     def get_domain(self):
         # Devuelve la string del dominio
         return self.domain
-    def search_branch(self,rama=""):
+    def search_children(self,objectguid=""):
         # Busco todo lo que este debajo de rama. Si rama esta vacio, 
         # dar lo dependiente del dominio.
         # El argumento es, o el nodo raiz, o el objectguid del nodo.
         cx=self.conectar()
-        if(rama=="" or rama=="#"):
-            rama=self.domain
-            search_result = cx.search(rama,scope=ldb.SCOPE_ONELEVEL,expression='',attrs=["dn","objectguid"])
+        if(objectguid=="" or objectguid=="#"):
+            objectguid=self.domain
+            search_result = cx.search(objectguid,scope=ldb.SCOPE_ONELEVEL,expression='',attrs=["dn","objectguid"])
         else:
-            guidhex=uuid.UUID(hex=rama)
+            guidhex=uuid.UUID(hex=objectguid)
             search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_ONELEVEL)
         hijos=[]
         for hijo in search_result:
@@ -80,7 +80,7 @@ class SambaServer(object):
             guidhex=uuid.UUID(bytes=objectguid)
             computadoras.append({'samaccountname':computadora.get("samaccountname",idx=0),'description':computadora.get("description",idx=0),'dn':computadora.get("dn",idx=0),'objectguid':computadora.get("objectguid",idx=0),'key':guidhex.hex})
         return computadoras
-    def search_entry(self,objectg):
+    def search_entry_by_objectguid(self,objectg):
         cx=self.conectar()
         guidhex=uuid.UUID(hex=objectg)
         # Me gustaria tomarme el credito pero no puedo, esa busqueda
@@ -88,10 +88,10 @@ class SambaServer(object):
         # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
         search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
         return search_result
-    def get_object(self,objectg):
+    def get_object_by_objectguid(self,objectg):
         # Dado el dn de un objeto, buscar todas sus propiedades.
         # La gracia es no listar todas las propiedades sino listarlas por reflection.
-        search_result=self.search_entry(objectg)
+        search_result=self.search_entry_by_objectguid(objectg)
         objeto=User()
         for resultado in search_result:
             objeto.dn=resultado.get("dn",idx=0)
@@ -137,5 +137,5 @@ class SambaServer(object):
     def get_account_flags(self,objectg):
         # Dado el objectguid de un objeto, voy y busco sus UserAccountFlags,
         # que pueden ser Disabled, Force logon, machine trust account, etc, etc, etc.
-        search_result=self.search_entry(objectg)
+        search_result=self.search_entry_by_objectguid(objectg)
         # Los flags vienen en el atributo userAccountControl.
