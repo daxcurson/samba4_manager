@@ -22,17 +22,23 @@ class SambaServer(object):
     def get_domain(self):
         # Devuelve la string del dominio
         return self.domain
+    def search_root(self):
+        # Da los hijos del nodo raiz, cuyo DN se puede pedir con get_domain.
+        cx=self.conectar()
+        search_result = cx.search(self.domain,scope=ldb.SCOPE_ONELEVEL,expression='',attrs=["dn","objectguid"])
+        hijos=[]
+        for hijo in search_result:
+            objectguid=hijo.get('objectguid',idx=0)
+            guidhex=uuid.UUID(bytes=objectguid)
+            hijos.append({"dn":hijo.get("dn",idx=0).get_casefold(),'objectguid':guidhex.hex})
+        return hijos
     def search_children(self,objectguid=""):
-        # Busco todo lo que este debajo de rama. Si rama esta vacio, 
-        # dar lo dependiente del dominio.
+        # Busco todo lo que este debajo del objeto informado por objectguid. 
+        # Si objectguid viene vacio o es numeral, dar lo dependiente del dominio ).
         # El argumento es, o el nodo raiz, o el objectguid del nodo.
         cx=self.conectar()
-        if(objectguid=="" or objectguid=="#"):
-            objectguid=self.domain
-            search_result = cx.search(objectguid,scope=ldb.SCOPE_ONELEVEL,expression='',attrs=["dn","objectguid"])
-        else:
-            guidhex=uuid.UUID(hex=objectguid)
-            search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_ONELEVEL)
+        guidhex=uuid.UUID(hex=objectguid)
+        search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_ONELEVEL)
         hijos=[]
         for hijo in search_result:
             objectguid=hijo.get('objectguid',idx=0)
@@ -87,11 +93,26 @@ class SambaServer(object):
         # salio del codigo fuente mismo de Samba,
         # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
         search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
+        # Asumo que retorno solamente un item.
+        result={}
+        for item in search_result:
+            result={
+                'objectguid':item.get('objectguid',idx=0),
+                'dn':item.get('dn',idx=0).get_casefold()
+                }
+        return result
+    def __search_entry_private(self,objectg):
+        cx=self.conectar()
+        guidhex=uuid.UUID(hex=objectg)
+        # Me gustaria tomarme el credito pero no puedo, esa busqueda
+        # salio del codigo fuente mismo de Samba,
+        # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
+        search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
         return search_result
     def get_object_by_objectguid(self,objectg):
         # Dado el dn de un objeto, buscar todas sus propiedades.
         # La gracia es no listar todas las propiedades sino listarlas por reflection.
-        search_result=self.search_entry_by_objectguid(objectg)
+        search_result=self.__search_entry_private(objectg)
         objeto=User()
         for resultado in search_result:
             objeto.dn=resultado.get("dn",idx=0)

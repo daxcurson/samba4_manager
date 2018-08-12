@@ -128,35 +128,57 @@ class SambaAdminViews(object):
         return {'form':form}
     @view_config(route_name='listar_avanzado',renderer="templates/listar_avanzado.jinja2")
     def listar_avanzado(self):
-        # Tengo que pedir una lista inicial de los items de mayor nivel, para despues
+                # Tengo que pedir una lista inicial de los items de mayor nivel, para despues
         # permitir que se despliegue e invocar al resto de los elementos.
         # Asi que aca hago una lista de items sacado de una condicion de busqueda
         # directa desde el raiz
-        server=SambaServer()
-        rama=server.search_branch("")
-        return {'rama':rama, 'raiz':server.get_domain()}
-    @view_config(route_name='listar_subrama')
-    def listar_subrama(self,renderer="json"):
+        #server=SambaServer()
+        #rama=server.search_branch("")
+        return {} #{'rama':rama, 'raiz':server.get_domain()}
+    @view_config(route_name='listar_subrama',renderer="json")
+    def listar_subrama(self):
         #objectguid=self.request.matchdict['id'].encode(encoding='UTF-8')
         # Pido el valor del parametro id del request, y darle el valor
         # del dominio si es que vino vacio
         server=SambaServer()
         objectguid=self.request.params.get("id")
+        nodo_dn=""
         if(objectguid=="#"):
             # Piden el nodo raiz. Hay que pedir el dominio y crear un nodo con eso.
-            nodo=server.get_domain()
-        padre=server.search_entry(objectguid)
-        hijos=server.search_branch(objectguid)
+            nodo_dn=server.get_domain()
+            # Si objectguid es el #, hago que el objectguid del nodo sea el nombre del dominio.
+            objectguid=nodo_dn
+            hijos=server.search_root()
+        else:
+            padre=server.search_entry_by_objectguid(objectguid)
+            nodo_dn=padre['dn']
+            hijos=server.search_children(objectguid)
         # Ahora bien, hay que devolver un formato esperado por esta cosa. 
-        json_return=self.convertir_a_json(hijos)
+        json_return=self.convertir_a_json(nodo_dn,objectguid,hijos)
         return json_return
-    def convertir_a_json(self,hijos):
-        # Pasamos a Json con el formato que requiere el jstree
-        lista_items=[]
+    def convertir_a_json(self,nodo_dn,objectguid,hijos):
+        # Pasamos a Json con el formato que requiere el jstree.
+        lista_hijos=[]
         for hijo in hijos:
-            item={
+            item_hijo={
                 'id':hijo['objectguid'],
-                'text':hijo['dn']
+                'text':hijo['dn'],
+                'state':{
+                    'opened':False,
+                    'disabled':False,
+                    'selected':False
+                    },
+                'children':True
                 }
-            lista_items.append(item)
-        return lista_items
+            lista_hijos.append(item_hijo)
+        item={
+            'id':objectguid,
+            'text':nodo_dn,
+            'state':{
+                'opened':True,
+                'disabled':False,
+                'selected':True
+                },
+            'children':lista_hijos
+            }
+        return item

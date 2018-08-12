@@ -34,15 +34,6 @@ $(document).ready(function()
             </div>
             <div class="card-body">
             <div id="advanced_tree">
-            <ul>
-            <li class="jstree-open">{{ raiz }}
-            <ul>
-            {% for item in rama %}
-            <li class="jstree-closed">{{ item['dn'] }}</li>
-            {% endfor %}
-            </ul>
-            </li>
-            </ul>
             </div>
             </div>
             <div class="card-footer small text-muted"></div>
