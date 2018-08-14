@@ -177,7 +177,7 @@ class SambaAdminViews(object):
             'state':{
                 'opened':True,
                 'disabled':False,
-                'selected':True
+                'selected':False
                 },
             'children':lista_hijos
             }
