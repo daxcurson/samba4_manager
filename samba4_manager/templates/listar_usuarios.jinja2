@@ -11,7 +11,7 @@
           <div class="card mb-3">
             <div class="card-header">
               <i class="fas fa-table"></i>
-              User list <form class="d-none d-md-inline-block form-inline ml-auto mr-0 mr-md-3 my-2 my-md-0" action="/add_user"><button class="btn btn-primary" type="button" alt="Add User"><i class="fas fa-user-plus"></i></form>
+              User list <form class="d-none d-md-inline-block form-inline ml-auto mr-0 mr-md-3 my-2 my-md-0" action="{{ request.route_path('agregar_usuario') }}" method="GET"><button class="btn btn-primary" type="submit" alt="Add User"><i class="fas fa-user-plus"></i></form>
             </button>
             </div>
             <div class="card-body">

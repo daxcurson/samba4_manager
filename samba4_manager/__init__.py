@@ -12,6 +12,7 @@ def main(global_config, **settings):
     config.add_route('listar_grupos','/grupos')
     config.add_route('listar_computadoras','/computadoras')
     config.add_route('agregar_usuario','/agregar_usuario')
+    config.add_route('agregar_usuario_grabar_form','/agregar_usuario_grabar')
     config.add_route('agregar_computadora','/agregar_computadora')
     config.add_route('editar_usuario_mostrar_form','/editar_usuario/{objectguid}')
     config.add_route('editar_usuario_grabar_form','/editar_usuario_grabar')

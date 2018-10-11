@@ -37,7 +37,12 @@ class SambaAdminViews(object):
         end=time.time()
         intervalo=end-start
         return { 'computadoras':computadoras,'intervalo':intervalo }
-    
+    def form_add_user(self,req_post):
+        usuario=()
+        form=UserForm(req_post,usuario)
+        form.enabled.data=usuario.enabled
+        form.account_type.data=usuario.account_type
+        return form
     def form_edit_user(self,req_post,usuario):
         # Cargo los valores en el formulario
         form=UserForm(req_post,usuario)
@@ -57,13 +62,22 @@ class SambaAdminViews(object):
         form.account_type.data=computadora.account_type
         return form
     @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2')
-    def agregar_usuario(self):
+    def agregar_usuario_mostrar_form(self):
         form=self.form_edit_user(self.request.POST)
         if self.request.method=='POST' and form.validate():
             user=User()
             user.samaccountname=form.samaccountname.data
             user.dn=form.dn.data
             # Aqui hay que grabar
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
+        return {'form':form}
+    @view_config(route_name='agregar_usuario_grabar_form',renderer='templates/agregar_usuario.jinja2')
+    def agregar_usuario_grabar_form(self):
+        usuario=()
+        form=self.form_add_user(self.request.POST, usuario)
+        if self.request_method=='POST' and form.validate():
+            form.populate(usuario)
+            # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
         return {'form':form}
     @view_config(route_name='editar_usuario_mostrar_form',renderer='templates/editar_usuario.jinja2')
