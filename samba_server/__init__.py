@@ -54,6 +54,19 @@ class SambaServer(object):
         badge.set_password(self.password)
         cx = SamDB(url='ldap://localhost',lp=lp,credentials=badge)
         return cx
+    def autenticar(self,usuario,password):
+        # Me conecto e intento autenticar a esta persona, estaria estableciendo
+        # una conexion con los datos del usuario en lugar de como server.
+        lp=param.LoadParm()
+        badge=Credentials()
+        badge.guess(lp)
+        badge.set_username(usuario)
+        badge.set_password(password)
+        # Intento la conexion.
+        cx=SamDB(url='ldap://localhost',lp=lp,credentials=badge)
+        # Listo, la gracia es que si logre autenticarme con estos datos, y hay algun
+        # resultado de mis acciones, voy a devolver algo. 
+        return cx
     def listar_usuarios(self):
         # Aca se conectaria con el server en localhost y devolveria la lista de usuarios.
         # Search...
@@ -76,6 +89,31 @@ class SambaServer(object):
             guidhex=uuid.UUID(bytes=objectguid)
             grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0),'key':guidhex.hex})
         return grupos
+    def pertenece_grupo(self,username,groupname):
+        pertenece=False
+        # Informa si el usuario pertenece al grupo que se pide
+        cx=self.conectar()
+        # El resultado de esta lista es un item, con el usuario, si este pertenece al grupo,
+        # o un resultado vacio.
+        search_result=cx.search(self.domain,scope=2,expression="(&(sAMAccountName=%s)(memberOf=%s))" % (username,groupname))
+        # Resulta que la lista vacia tiene el valor implicito false. Haciendo not search_result,
+        # me aseguro que la lista tenga contenido.
+        if search_result is not None and not search_result:
+            pertenece=True
+        return pertenece
+    def search_user_by_userid(self,userid):
+        # Recibo alguna clase de id que el sistema Pyramid se guarda sobre el usuario autenticado.
+        # Lo uso para alguna clase de busqueda en el LDAP
+        cx=self.conectar()
+        search_result=cx.search(self.domain,scope=2,expression="(sAMAccountName=%s" % userid)
+        result={}
+        for item in search_result:
+            result={
+                'objectguid':item.get('objectguid',idx=0),
+                'dn':item.get('dn',idx=0).get_casefold(),
+                'samaccountname':item.get('samaccountname',idx=0)
+                }
+        return result
     def listar_computadoras(self):
         cx=self.conectar()
         search_result=cx.search(self.domain,scope=2,expression="(objectClass=computer)",attrs=["samaccountname","description","dn","objectguid"])
@@ -87,12 +125,7 @@ class SambaServer(object):
             computadoras.append({'samaccountname':computadora.get("samaccountname",idx=0),'description':computadora.get("description",idx=0),'dn':computadora.get("dn",idx=0),'objectguid':computadora.get("objectguid",idx=0),'key':guidhex.hex})
         return computadoras
     def search_entry_by_objectguid(self,objectg):
-        cx=self.conectar()
-        guidhex=uuid.UUID(hex=objectg)
-        # Me gustaria tomarme el credito pero no puedo, esa busqueda
-        # salio del codigo fuente mismo de Samba,
-        # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
-        search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
+        search_result=self.__search_entry_private(objectg)
         # Asumo que retorno solamente un item.
         result={}
         for item in search_result:

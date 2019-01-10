@@ -1,15 +1,67 @@
 import time
 import pyramid.httpexceptions
 from samba_server import SambaServer
-from pyramid.view import view_config
+from pyramid.view import view_config, forbidden_view_config
+from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
 from samba4_manager.model import UserForm, ComputerForm, GroupForm
+
+class SambaAdminPermissions(object):
+    __acl__ = [ (Allow, Everyone, 'view'),
+               (Allow, 'group:admin', 'edit') ]
 
 class SambaAdminViews(object):
     def __init__(self, request):
         self.request = request
 
-    @view_config(route_name='listar_usuarios',renderer='templates/listar_usuarios.jinja2')
+    @view_config(route_name='login', renderer='templates/login.jinja2')
+    @forbidden_view_config(renderer='templates/login.jinja2')
+    def login(self):
+        print("samba4_manager: estoy en el metodo de login")
+        request = self.request
+        login_url = request.route_url('login')
+        referrer = request.url
+        if referrer == login_url:
+            referrer = '/'  # never use login form itself as came_from
+        came_from = request.params.get('came_from', referrer)
+        message = ''
+        login = ''
+        password = ''
+        if 'submitted' in request.params:
+            print("samba4_manager: estoy en Login, y tengo un form recibido")
+            login = request.params['inputUser']
+            password = request.params['inputPassword']
+            server=SambaServer()
+            print("samba4_manager: intento autenticar con %s y %s" % (login,password))
+            cx=server.autenticar(login, password)
+            if(cx is not None):
+                print("samba4_manager: estoy en login y la busqueda de un usuario tuvo exito")
+                headers = remember(request, login)
+                return pyramid.httpexceptions.HTTPFound(location=came_from,
+                                 headers=headers)
+            else:
+                print("cx era None. No se invoco el server?!?!?!?!?!!?")
+            message = 'Failed login'
+
+        return dict(
+            name='Login',
+            message=message,
+            url=request.application_url + '/login',
+            came_from=came_from,
+            login=login,
+            password=password,
+            )
+
+    @view_config(route_name='logout')
+    def logout(self):
+        request = self.request
+        headers = forget(request)
+        url = request.route_url('home')
+        return pyramid.httpexceptions.HTTPFound(location=url,
+                         headers=headers)
+
+    @view_config(route_name='listar_usuarios',renderer='templates/listar_usuarios.jinja2',
+                 permission="edit")
     def listar_usuarios(self):
         # Aca me comunico con Samba y le pido la lista de usuarios
         # actuales.
@@ -19,7 +71,8 @@ class SambaAdminViews(object):
         end=time.time()
         intervalo=end-start
         return { 'usuarios': usuarios,'intervalo':intervalo }
-    @view_config(route_name='listar_grupos',renderer='templates/listar_grupos.jinja2')
+    @view_config(route_name='listar_grupos',renderer='templates/listar_grupos.jinja2',
+                 permission="edit")
     def listar_grupos(self):
         # Le pido la lista de grupos actuales.
         start=time.time()
@@ -28,7 +81,8 @@ class SambaAdminViews(object):
         end=time.time()
         intervalo=end-start
         return { 'grupos':grupos,'intervalo':intervalo }
-    @view_config(route_name='listar_computadoras',renderer='templates/listar_computadoras.jinja2')
+    @view_config(route_name='listar_computadoras',renderer='templates/listar_computadoras.jinja2',
+                 permission="edit")
     def listar_computadoras(self):
         # Le pido la lista de grupos actuales.
         start=time.time()
@@ -61,9 +115,10 @@ class SambaAdminViews(object):
         form.enabled.data=computadora.enabled
         form.account_type.data=computadora.account_type
         return form
-    @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2')
+    @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2',
+                 permission="edit")
     def agregar_usuario_mostrar_form(self):
-        form=self.form_edit_user(self.request.POST)
+        form=self.form_add_user(self.request.POST)
         if self.request.method=='POST' and form.validate():
             user=User()
             user.samaccountname=form.samaccountname.data
@@ -71,16 +126,18 @@ class SambaAdminViews(object):
             # Aqui hay que grabar
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
         return {'form':form}
-    @view_config(route_name='agregar_usuario_grabar_form',renderer='templates/agregar_usuario.jinja2')
+    @view_config(route_name='agregar_usuario_grabar_form',renderer='templates/agregar_usuario.jinja2',
+                 permission="edit")
     def agregar_usuario_grabar_form(self):
         usuario=()
-        form=self.form_add_user(self.request.POST, usuario)
+        form=self.form_add_user(self.request.POST)
         if self.request_method=='POST' and form.validate():
             form.populate(usuario)
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
         return {'form':form}
-    @view_config(route_name='editar_usuario_mostrar_form',renderer='templates/editar_usuario.jinja2')
+    @view_config(route_name='editar_usuario_mostrar_form',renderer='templates/editar_usuario.jinja2',
+                 permission="edit")
     def editar_usuario_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
@@ -91,7 +148,8 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
         return {'form':form}
-    @view_config(route_name='editar_usuario_grabar_form',renderer='templates/editar_usuario.jinja2')
+    @view_config(route_name='editar_usuario_grabar_form',renderer='templates/editar_usuario.jinja2',
+                 permission="edit")
     def editar_usuario_grabar_form(self):
         usuario=()
         form=self.form_edit_user(self.request.POST, usuario)
@@ -100,7 +158,8 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
         return {'form':form}
-    @view_config(route_name='editar_computadora_mostrar_form',renderer='templates/editar_computadora.jinja2')
+    @view_config(route_name='editar_computadora_mostrar_form',renderer='templates/editar_computadora.jinja2',
+                 permission="edit")
     def editar_computadora_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
@@ -111,7 +170,8 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_computadoras'))
         return {'form':form}
-    @view_config(route_name='editar_computadora_grabar_form',renderer='templates/editar_computadora.jinja2')
+    @view_config(route_name='editar_computadora_grabar_form',renderer='templates/editar_computadora.jinja2',
+                 permission="edit")
     def editar_computadora_grabar_form(self):
         computadora=()
         form=self.form_edit_computer(self.request.POST, computadora)
@@ -120,7 +180,8 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_computadoras'))
         return {'form':form}
-    @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2')
+    @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2',
+                 permission="edit")
     def editar_grupo_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
         server=SambaServer()
@@ -131,7 +192,8 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
         return {'form':form}
-    @view_config(route_name='editar_grupo_grabar_form',renderer='templates/editar_grupo.jinja2')
+    @view_config(route_name='editar_grupo_grabar_form',renderer='templates/editar_grupo.jinja2',
+                 permission="edit")
     def editar_grupo_grabar_form(self):
         grupo=()
         form=self.form_edit_group(self.request.POST, grupo)
@@ -140,7 +202,8 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
         return {'form':form}
-    @view_config(route_name='listar_avanzado',renderer="templates/listar_avanzado.jinja2")
+    @view_config(route_name='listar_avanzado',renderer="templates/listar_avanzado.jinja2",
+                 permission="edit")
     def listar_avanzado(self):
                 # Tengo que pedir una lista inicial de los items de mayor nivel, para despues
         # permitir que se despliegue e invocar al resto de los elementos.
@@ -149,7 +212,8 @@ class SambaAdminViews(object):
         #server=SambaServer()
         #rama=server.search_branch("")
         return {} #{'rama':rama, 'raiz':server.get_domain()}
-    @view_config(route_name='listar_subrama',renderer="json")
+    @view_config(route_name='listar_subrama',renderer="json",
+                 permission="edit")
     def listar_subrama(self):
         #objectguid=self.request.matchdict['id'].encode(encoding='UTF-8')
         # Pido el valor del parametro id del request, y darle el valor
