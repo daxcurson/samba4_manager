@@ -105,7 +105,7 @@ class SambaServer(object):
         # Recibo alguna clase de id que el sistema Pyramid se guarda sobre el usuario autenticado.
         # Lo uso para alguna clase de busqueda en el LDAP
         cx=self.conectar()
-        search_result=cx.search(self.domain,scope=2,expression="(sAMAccountName=%s" % userid)
+        search_result=cx.search(self.domain,scope=2,expression="(sAMAccountName=%s)" % userid)
         result={}
         for item in search_result:
             result={
