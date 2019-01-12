@@ -59,7 +59,7 @@ class SambaAdminViews(object):
     def logout(self):
         request = self.request
         headers = forget(request)
-        url = request.route_url('home')
+        url = request.route_url('listar_usuarios')
         return pyramid.httpexceptions.HTTPFound(location=url,
                          headers=headers)
 
