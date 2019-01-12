@@ -95,11 +95,18 @@ class SambaServer(object):
         cx=self.conectar()
         # El resultado de esta lista es un item, con el usuario, si este pertenece al grupo,
         # o un resultado vacio.
+        print("pertenece_grupo: trato de ver si %s pertenece al grupo %s" % (username,groupname))
         search_result=cx.search(self.domain,scope=2,expression="(&(sAMAccountName=%s)(memberOf=%s))" % (username,groupname))
         # Resulta que la lista vacia tiene el valor implicito false. Haciendo not search_result,
         # me aseguro que la lista tenga contenido.
-        if search_result is not None and not search_result:
-            pertenece=True
+        print("pertenece_grupo: Hice la busqueda en Samba, ahora me fijo que resultado obtuve")
+        print("pertenece_grupo: el resultado de la busqueda fue %s" % search_result)
+        for username in search_result:
+            samaccountname=username.get('samaccountname',idx=0)
+            # Si ahora tengo un samaccountname, lo devuelvo.
+            print("pertenece_grupo: el samaccountname es %s" % samaccountname)
+            if samaccountname is not None:
+                pertenece=True
         return pertenece
     def search_user_by_userid(self,userid):
         # Recibo alguna clase de id que el sistema Pyramid se guarda sobre el usuario autenticado.

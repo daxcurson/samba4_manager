@@ -4,6 +4,8 @@ from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.security import unauthenticated_userid
 from samba_server import SambaServer
 from .views import SambaAdminPermissions 
+from .authorization import SambaAdminAuthenticationPolicy
+from .model import User
 
 def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
@@ -30,12 +32,12 @@ def main(global_config, **settings):
     config.add_route('listar_avanzado','/listar_avanzado')
     config.add_route('listar_subrama','/listar_subrama')
     
-    authn_policy = AuthTktAuthenticationPolicy(
+    authn_policy = SambaAdminAuthenticationPolicy(
         'sosecret', callback=groupfinder, hashalg='sha512')
     authz_policy = ACLAuthorizationPolicy()
     config.set_authentication_policy(authn_policy)
     config.set_authorization_policy(authz_policy)
-    config.set_root_factory(lambda request: SambaAdminPermissions())
+    config.set_root_factory(lambda request: SambaAdminPermissions(request))
     config.scan()
     return config.make_wsgi_app()
 
@@ -43,13 +45,20 @@ def get_user(request):
     userid = unauthenticated_userid(request)
     print("get_user: el userid es %s" % userid)
     if userid is not None:
+        print("get_user: el userid no es None. Consulto Samba")
         # Consulto el servidor de Samba con el user id del request.
         server=SambaServer()
         user=server.search_user_by_userid(userid)
         # este nombre de grupo tendria que ser leido de la configuracion, pero primero probemos si 
         # anda asi.
-        if server.pertenece_grupo(user.samaccountname, "CN=Administrators,CN=Builtin,DC=agusvillafane,DC=zapto,DC=org"):
-            return {'id':user.get('objectguid', '')}
+        print("get_user: consulte el userid %s en Samba y me trajo el user %s" % (userid,user))
+        if server.pertenece_grupo(user['samaccountname'], "CN=Administrators,CN=Builtin,DC=agusvillafane,DC=zapto,DC=org"):
+            print("get_user: el usuario que obtuve pertenece al grupo de administradores")
+            # Le impongo a user una lista de groups con el grupo admin.
+            userobject=User()
+            userobject.samaccountname=user['samaccountname']
+            userobject.groups=["admin"]
+            return userobject
 def groupfinder(userid, request):
     user = request.user
     print("groupfinder: me llamaron con el userid %s y el request %s" % (userid,request))

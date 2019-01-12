@@ -9,10 +9,13 @@ from samba4_manager.model import UserForm, ComputerForm, GroupForm
 class SambaAdminPermissions(object):
     __acl__ = [ (Allow, Everyone, 'view'),
                (Allow, 'group:admin', 'edit') ]
+    def __init__(self, request):
+        pass
 
 class SambaAdminViews(object):
     def __init__(self, request):
         self.request = request
+        self.logged_in = request.authenticated_userid
 
     @view_config(route_name='login', renderer='templates/login.jinja2')
     @forbidden_view_config(renderer='templates/login.jinja2')

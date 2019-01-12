@@ -38,6 +38,7 @@ class User(ADObject):
         self.samaccountname=accountname
         self.enabled=True
         self.account_type="normal_account"
+        self.groups=[]
 
 class Computer(ADObject):
     def __init(self,accountname="",dist_name=""):
