@@ -16,7 +16,8 @@ requires = [
     'pyramid_debugtoolbar',
     'waitress',
     'secureconfig',
-    'WTForms'
+    'WTForms',
+    'reconfigure'
 ]
 
 tests_require = [

@@ -29,6 +29,8 @@ def main(global_config, **settings):
     config.add_route('editar_grupo_grabar_form','/editar_grupo_grabar')
     config.add_route('editar_computadora_mostrar_form','/editar_computadora/{objectguid}')
     config.add_route('editar_computadora_grabar_form','/editar_computadora_grabar')
+    config.add_route('editar_share_mostrar_form','/editar_share/{objectguid}')
+    config.add_route('listar_shares','/listar_shares')
     config.add_route('listar_avanzado','/listar_avanzado')
     config.add_route('listar_subrama','/listar_subrama')
     

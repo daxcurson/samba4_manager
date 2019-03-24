@@ -1,0 +1,40 @@
+{% extends "base.jinja2" %}
+{% block breadcrumb_items %}
+	{{ super() }}
+{% endblock %}
+{% block breadcrumb_active_item %}
+            <li class="breadcrumb-item active">Carpetas compartidas</li>
+{% endblock %}
+{% block sidebar_shares %}active{% endblock %}
+{% block content %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <i class="fas fa-table"></i>
+              Shares list <form class="d-none d-md-inline-block form-inline ml-auto mr-0 mr-md-3 my-2 my-md-0" action="/add_user"><button class="btn btn-primary" type="button" alt="Add Share"><i class="fas fa-users"></i><i class="fas fa-plus"></i></form>
+            </button>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                  <thead>
+                    <tr><th><i class="fas fa-cog"></i></th><th>Share name</th><th>Description</th><th>Path</th></tr>
+                  </thead>
+                  <tfoot>
+                    <tr><th><i class="fas fa-cog"></i></th><th>Share name</th><th>Description</th><th>Path</th></tr>
+                  </tfoot>
+                  <tbody>
+                        {% for share in shares %}
+                    <tr>
+                    	<td><a href="{{ request.route_path('editar_share_mostrar_form',objectguid=share.name) }}"><i class="fas fa-edit"></i></a></td>
+                        <td>{{ share.name }}</td>
+                        <td>{{ share.comment }}</td>
+                        <td>{{ share.path }}</td>
+                    </tr>
+                        {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card-footer small text-muted">La consulta tard&oacute; {{ "%.2f"|format(intervalo) }} segundos</div>
+          </div>
+{% endblock %}

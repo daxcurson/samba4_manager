@@ -5,6 +5,8 @@ from pyramid.view import view_config, forbidden_view_config
 from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
 from samba4_manager.model import UserForm, ComputerForm, GroupForm
+from samba4_config_writer import SambaConfigWriter
+from asn1crypto._ffi import null
 
 class SambaAdminPermissions(object):
     __acl__ = [ (Allow, Everyone, 'view'),
@@ -16,6 +18,7 @@ class SambaAdminViews(object):
     def __init__(self, request):
         self.request = request
         self.logged_in = request.authenticated_userid
+        self.samba_config=SambaConfigWriter()
 
     @view_config(route_name='login', renderer='templates/login.jinja2')
     @forbidden_view_config(renderer='templates/login.jinja2')
@@ -205,6 +208,19 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
         return {'form':form}
+    @view_config(route_name="editar_share_mostrar_form",renderer="templates/editar_share.jinja2",
+                 permission="edit")
+    def editar_share_mostrar_form(self):
+        form=""
+        return {'form':form}
+    @view_config(route_name="listar_shares",renderer="templates/listar_shares.jinja2",
+                 permission="edit")
+    def listar_shares(self):
+        start=time.time()
+        shares=self.samba_config.listar_shares()
+        end=time.time()
+        intervalo=end-start
+        return { 'shares':shares,'intervalo':intervalo }
     @view_config(route_name='listar_avanzado',renderer="templates/listar_avanzado.jinja2",
                  permission="edit")
     def listar_avanzado(self):
