@@ -4,7 +4,7 @@ from samba_server import SambaServer
 from pyramid.view import view_config, forbidden_view_config
 from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
-from samba4_manager.model import UserForm, ComputerForm, GroupForm
+from samba4_manager.model import UserForm, ComputerForm, GroupForm, ShareForm
 from samba4_config_writer import SambaConfigWriter
 from asn1crypto._ffi import null
 
@@ -121,6 +121,12 @@ class SambaAdminViews(object):
         form.enabled.data=computadora.enabled
         form.account_type.data=computadora.account_type
         return form
+    def form_edit_share(self,req_post,share):
+        form=ShareForm(req_post,share)
+        # Aqui completo algunos datos del share.
+        form.path=share.path
+        return form
+        
     @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2',
                  permission="edit")
     def agregar_usuario_mostrar_form(self):
@@ -211,8 +217,16 @@ class SambaAdminViews(object):
     @view_config(route_name="editar_share_mostrar_form",renderer="templates/editar_share.jinja2",
                  permission="edit")
     def editar_share_mostrar_form(self):
-        form=""
+        share=
+        form=self.form_edit_share(self.request.POST, share)
         return {'form':form}
+    def editar_share_grabar_form(self):
+        share=()
+        form=self.form_edit_share(self.request.POST,share)
+        if self.request_method=="POST" and form.validate():
+            form.populate(share)
+            # Grabar la configuracion del share
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_shares'))
     @view_config(route_name="listar_shares",renderer="templates/listar_shares.jinja2",
                  permission="edit")
     def listar_shares(self):

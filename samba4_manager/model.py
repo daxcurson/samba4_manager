@@ -28,7 +28,8 @@ class GroupForm(Form):
         ("server_account","Server Account"), 
         ("normal_account","Normal Account")
         ])
-
+class ShareForm(Form):
+    path=StringField('Path',[validators.InputRequired()])
 class ADObject(object):
     def __init__(self,dist_name=""):
         self.dn=dist_name
