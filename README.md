@@ -17,6 +17,22 @@ The use of Python for the creation of this tool is to make use of the Python bin
 
 ## Installation
 
+### Pre-requisites
+
+The following packages have to be installed:
+
+sudo yum install samba python3-samba python3-samba-devel samba-dc-libs python3-samba-dc
+
+The following python packages need to be installed:
+
+pip install mod_wsgi
+
+To find the required configuration that is needed for Apache to be configured to load mod_wsgi as a module, run this:
+
+/usr/local/bin/mod_wsgi-express module-config
+
+### Package installation with pip
+
 For now, the process to release the application as a Python package nas not been completed. To deploy this application, the following steps need to be performed:
 
 1. git clone of this repository into a folder available to the web server.
