@@ -6,7 +6,7 @@ from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
 from samba4_manager.model import UserForm, ComputerForm, GroupForm, ShareForm
 from samba4_config_writer import SambaConfigWriter
-from asn1crypto._ffi import null
+#from asn1crypto._ffi import null
 
 class SambaAdminPermissions(object):
     __acl__ = [ (Allow, Everyone, 'view'),
@@ -217,7 +217,7 @@ class SambaAdminViews(object):
     @view_config(route_name="editar_share_mostrar_form",renderer="templates/editar_share.jinja2",
                  permission="edit")
     def editar_share_mostrar_form(self):
-        share=
+        #share=
         form=self.form_edit_share(self.request.POST, share)
         return {'form':form}
     def editar_share_grabar_form(self):

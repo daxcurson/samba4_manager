@@ -1,7 +1,6 @@
 from pyramid.config import Configurator
 from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
-from pyramid.security import unauthenticated_userid
 from samba_server import SambaServer
 from .views import SambaAdminPermissions 
 from .authorization import SambaAdminAuthenticationPolicy
@@ -34,8 +33,8 @@ def main(global_config, **settings):
     config.add_route('listar_avanzado','/listar_avanzado')
     config.add_route('listar_subrama','/listar_subrama')
     
-    authn_policy = SambaAdminAuthenticationPolicy(
-        'sosecret', callback=groupfinder, hashalg='sha512')
+    
+    authn_policy = SambaAdminAuthenticationPolicy('sosecret')
     authz_policy = ACLAuthorizationPolicy()
     config.set_authentication_policy(authn_policy)
     config.set_authorization_policy(authz_policy)
@@ -44,7 +43,6 @@ def main(global_config, **settings):
     return config.make_wsgi_app()
 
 def get_user(request):
-    userid = unauthenticated_userid(request)
     print("get_user: el userid es %s" % userid)
     if userid is not None:
         print("get_user: el userid no es None. Consulto Samba")
