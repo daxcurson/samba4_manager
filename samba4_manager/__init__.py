@@ -1,6 +1,7 @@
 from pyramid.config import Configurator
 from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
+from pyramid.session import SignedCookieSessionFactory
 from samba_server import SambaServer
 from .views import SambaAdminPermissions 
 from .authorization import SambaAdminAuthenticationPolicy
@@ -9,11 +10,12 @@ from .model import User
 def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
-    config = Configurator(settings=settings)
+    samba_session_factory=SignedCookieSessionFactory('itsaseekreet')
+    config = Configurator(settings=settings,session_factory=samba_session_factory)
     config.include('pyramid_jinja2')
     config.add_static_view('deform_static', 'deform:static/')
     config.add_static_view('static', 'samba4_manager:static')
-    config.add_request_method(get_user, 'user', reify=True)
+    #config.add_request_method(get_user, 'user', reify=True)
     config.add_route('login','/login')
     config.add_route('logout','/logout')
     config.add_route('listar_usuarios', '/')

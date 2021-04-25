@@ -23,7 +23,7 @@ class SambaAdminViews(object):
     @view_config(route_name='login', renderer='templates/login.jinja2')
     @forbidden_view_config(renderer='templates/login.jinja2')
     def login(self):
-        print("samba4_manager: estoy en el metodo de login")
+        print("samba4_manager: login method")
         request = self.request
         login_url = request.route_url('login')
         referrer = request.url
@@ -34,19 +34,19 @@ class SambaAdminViews(object):
         login = ''
         password = ''
         if 'submitted' in request.params:
-            print("samba4_manager: estoy en Login, y tengo un form recibido")
+            print("samba4_manager: I'm in login, I received a form")
             login = request.params['inputUser']
             password = request.params['inputPassword']
             server=SambaServer()
-            print("samba4_manager: intento autenticar con %s y %s" % (login,password))
-            cx=server.autenticar(login, password)
+            print("samba4_manager: attempting to authenticate with %s and %s" % (login,password))
+            cx=server.authenticate(login, password)
             if(cx is not None):
-                print("samba4_manager: estoy en login y la busqueda de un usuario tuvo exito")
+                print("samba4_manager: login, search for user was successful")
                 headers = remember(request, login)
                 return pyramid.httpexceptions.HTTPFound(location=came_from,
                                  headers=headers)
             else:
-                print("cx era None. No se invoco el server?!?!?!?!?!!?")
+                print("cx was none. Server not invoked??????")
             message = 'Failed login'
 
         return dict(

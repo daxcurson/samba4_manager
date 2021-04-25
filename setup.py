@@ -10,14 +10,14 @@ with open(os.path.join(here, 'CHANGES.txt')) as f:
 
 requires = [
     'plaster_pastedeploy',
-    'pyramid',
-    'pyramid_chameleon',
-    'pyramid_jinja2',
-    'pyramid_debugtoolbar',
-    'waitress',
-    'secureconfig',
-    'WTForms',
-    'reconfigure'
+    'pyramid==2.0',
+    'pyramid_chameleon==0.3',
+    'pyramid_jinja2==2.8',
+    'pyramid_debugtoolbar==4.9',
+    'waitress==2.0.0',
+    'secureconfig==0.2.0a0',
+    'WTForms==2.3.3',
+    'reconfigure==0.1.82'
 ]
 
 tests_require = [
@@ -37,10 +37,10 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
     ],
-    author='',
-    author_email='',
-    url='',
-    keywords='web pyramid pylons',
+    author='Agustin Villafane',
+    author_email='agusvillafane@yahoo.com.ar',
+    url='https://github.com/daxcurson/samba4_manager',
+    keywords='web pyramid pylons samba manager',
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,

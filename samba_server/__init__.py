@@ -14,11 +14,12 @@ from secureconfig import SecureString
 class SambaServer(object):
     def __init__(self):
         # Read the configuration file and store its values in memory.
-        config=SecureConfigParser.from_file("/etc/httpd/conf.d/key.txt")
-        config.read("/etc/httpd/conf.d/secret.txt")
-        self.username=SecureString(config.get('credentials','username'))
-        self.password=SecureString(config.get('credentials','password'))
-        self.domain=config.get('credentials','domain')
+        #config=SecureConfigParser.from_file("/etc/httpd/conf.d/key.txt")
+        #config.read("/etc/httpd/conf.d/secret.txt")
+        #self.username=SecureString(config.get('credentials','username'))
+        #self.password=SecureString(config.get('credentials','password'))
+        #self.domain=config.get('credentials','domain')
+        self.domain=""
     def get_domain(self):
         # Devuelve la string del dominio
         return self.domain
@@ -54,9 +55,8 @@ class SambaServer(object):
         badge.set_password(self.password)
         cx = SamDB(url='ldap://localhost',lp=lp,credentials=badge)
         return cx
-    def autenticar(self,usuario,password):
-        # Me conecto e intento autenticar a esta persona, estaria estableciendo
-        # una conexion con los datos del usuario en lugar de como server.
+    def authenticate(self,usuario,password):
+        # Connect to samba and attempt to authenticate this user
         lp=param.LoadParm()
         badge=Credentials()
         badge.guess(lp)
