@@ -21,7 +21,7 @@ The use of Python for the creation of this tool is to make use of the Python bin
 
 The following packages have to be installed:
 
-sudo yum install samba python3-samba python3-samba-devel samba-dc-libs python3-samba-dc httpd php-fpm httpd-devel
+sudo yum install samba python3-samba python3-samba-devel samba-dc-libs python3-samba-dc httpd php-fpm httpd-devel python3-devel
 
 The following python packages need to be installed:
 
