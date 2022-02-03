@@ -19,6 +19,8 @@ class SambaAdminViews(object):
         self.request = request
         self.logged_in = request.authenticated_userid
         self.samba_config=SambaConfigWriter()
+        self.samba_server=SambaServer.getInstance()
+        print("Samba Server at %s" % self.samba_server)
 
     @view_config(route_name='login', renderer='templates/login.jinja2')
     @forbidden_view_config(renderer='templates/login.jinja2')
@@ -37,9 +39,10 @@ class SambaAdminViews(object):
             print("samba4_manager: I'm in login, I received a form")
             login = request.params['inputUser']
             password = request.params['inputPassword']
-            server=SambaServer()
+            # I'll need to load the SambaServer object with username and password!
+            self.samba_server.set_authentication(login, password)
             print("samba4_manager: attempting to authenticate with %s and %s" % (login,password))
-            cx=server.authenticate(login, password)
+            cx=self.samba_server.authenticate(login, password)
             if(cx is not None):
                 print("samba4_manager: login, search for user was successful")
                 headers = remember(request, login)
@@ -48,7 +51,8 @@ class SambaAdminViews(object):
             else:
                 print("cx was none. Server not invoked??????")
             message = 'Failed login'
-
+        else:
+            print("samba4_manager: I still didn't receive the login form")
         return dict(
             name='Login',
             message=message,
@@ -72,8 +76,7 @@ class SambaAdminViews(object):
         # Aca me comunico con Samba y le pido la lista de usuarios
         # actuales.
         start=time.time()
-        server=SambaServer()
-        usuarios=server.listar_usuarios()
+        usuarios=self.samba_server.listar_usuarios()
         end=time.time()
         intervalo=end-start
         return { 'usuarios': usuarios,'intervalo':intervalo }
@@ -82,8 +85,7 @@ class SambaAdminViews(object):
     def listar_grupos(self):
         # Le pido la lista de grupos actuales.
         start=time.time()
-        server=SambaServer()
-        grupos=server.listar_grupos()
+        grupos=self.samba_server.listar_grupos()
         end=time.time()
         intervalo=end-start
         return { 'grupos':grupos,'intervalo':intervalo }
@@ -92,13 +94,12 @@ class SambaAdminViews(object):
     def listar_computadoras(self):
         # Le pido la lista de grupos actuales.
         start=time.time()
-        server=SambaServer()
-        computadoras=server.listar_computadoras()
+        computadoras=self.samba_server.listar_computadoras()
         end=time.time()
         intervalo=end-start
         return { 'computadoras':computadoras,'intervalo':intervalo }
     def form_add_user(self,req_post):
-        usuario=()
+        usuario=User()
         form=UserForm(req_post,usuario)
         form.enabled.data=usuario.enabled
         form.account_type.data=usuario.account_type
@@ -152,8 +153,7 @@ class SambaAdminViews(object):
                  permission="edit")
     def editar_usuario_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
-        server=SambaServer()
-        usuario=server.get_object_by_objectguid(objectguid)
+        usuario=self.samba_server.get_object_by_objectguid(objectguid)
         form=self.form_edit_user(self.request.POST,usuario)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(usuario)
@@ -174,8 +174,7 @@ class SambaAdminViews(object):
                  permission="edit")
     def editar_computadora_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
-        server=SambaServer()
-        computadora=server.get_object_by_objectguid(objectguid)
+        computadora=self.samba_server.get_object_by_objectguid(objectguid)
         form=self.form_edit_computer(self.request.POST,computadora)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(computadora)
@@ -196,8 +195,7 @@ class SambaAdminViews(object):
                  permission="edit")
     def editar_grupo_mostrar_form(self):
         objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
-        server=SambaServer()
-        grupo=server.get_object_by_objectguid(objectguid)
+        grupo=self.samba_server.get_object_by_objectguid(objectguid)
         form=self.form_edit_group(self.request.POST,grupo)
         if self.request.method=='POST' and form.validate():
             form.populate_obj(grupo)
@@ -251,19 +249,18 @@ class SambaAdminViews(object):
         #objectguid=self.request.matchdict['id'].encode(encoding='UTF-8')
         # Pido el valor del parametro id del request, y darle el valor
         # del dominio si es que vino vacio
-        server=SambaServer()
         objectguid=self.request.params.get("id")
         nodo_dn=""
         if(objectguid=="#"):
             # Piden el nodo raiz. Hay que pedir el dominio y crear un nodo con eso.
-            nodo_dn=server.get_domain()
+            nodo_dn=self.samba_server.get_domain()
             # Si objectguid es el #, hago que el objectguid del nodo sea el nombre del dominio.
             objectguid=nodo_dn
-            hijos=server.search_root()
+            hijos=self.samba_server.search_root()
         else:
-            padre=server.search_entry_by_objectguid(objectguid)
+            padre=self.samba_server.search_entry_by_objectguid(objectguid)
             nodo_dn=padre['dn']
-            hijos=server.search_children(objectguid)
+            hijos=self.samba_server.search_children(objectguid)
         # Ahora bien, hay que devolver un formato esperado por esta cosa. 
         json_return=self.convertir_a_json(nodo_dn,objectguid,hijos)
         return json_return

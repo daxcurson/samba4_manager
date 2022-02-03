@@ -1,9 +1,11 @@
 from pyramid.authentication import AuthTktCookieHelper
 from pyramid.authorization import ACLHelper, Authenticated, Everyone
+from samba_server import SambaServer
 
 class SambaSecurityPolicy:
     def __init__(self, secret):
         self.helper = AuthTktCookieHelper(secret)
+        self.samba_server=SambaServer.getInstance()
 
     def identity(self, request):
         # define our simple identity as None or a dict with userid and principals keys
@@ -21,11 +23,16 @@ class SambaSecurityPolicy:
                 'userid': userid,
                 'principals': principals,
             }
+        return None
     def groupfinder(self,userid, request):
-        user = request.user
-        print("groupfinder: me llamaron con el userid %s y el request %s" % (userid,request))
-        if user is not None:
-            return [ "admin" ]
+        # The View requires to create an ACL to allow
+        # or refuse the access to the screen. This should
+        # return a group such that it would be authorized
+        # for the view. The list of groups should be
+        # retrieved from Samba and check if the user
+        # has the Administrators group.
+        if userid is not None:
+            return [ "group:admin" ]
         return None
 
     def authenticated_userid(self, request):

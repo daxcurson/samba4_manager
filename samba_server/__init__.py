@@ -12,14 +12,32 @@ from secureconfig.secureconfigparser import SecureConfigParser
 from secureconfig import SecureString
 
 class SambaServer(object):
+    __instance = None
+    @staticmethod 
+    def getInstance():
+        """ Static access method. """
+        if SambaServer.__instance == None:
+            SambaServer()
+        return SambaServer.__instance
     def __init__(self):
+        """ Virtually private constructor. """
+        if SambaServer.__instance != None:
+            raise Exception("This class is a singleton!")
+        else:
+            SambaServer.__instance = self
         # Read the configuration file and store its values in memory.
         #config=SecureConfigParser.from_file("/etc/httpd/conf.d/key.txt")
         #config.read("/etc/httpd/conf.d/secret.txt")
         #self.username=SecureString(config.get('credentials','username'))
         #self.password=SecureString(config.get('credentials','password'))
         #self.domain=config.get('credentials','domain')
+        self.username=""
+        self.password=""
         self.domain=""
+    def set_authentication(self,username,password):
+        self.username=username
+        self.password=password
+        #self.domain=domain
     def get_domain(self):
         # Devuelve la string del dominio
         return self.domain
@@ -54,9 +72,11 @@ class SambaServer(object):
         badge.set_username(self.username)
         badge.set_password(self.password)
         cx = SamDB(url='ldap://localhost',lp=lp,credentials=badge)
+        self.domain=cx.domain_dn()
         return cx
     def authenticate(self,usuario,password):
         # Connect to samba and attempt to authenticate this user
+        print("SambaServer.authenticate: authenticating with %s and %s" % (usuario,password))
         lp=param.LoadParm()
         badge=Credentials()
         badge.guess(lp)
@@ -64,6 +84,9 @@ class SambaServer(object):
         badge.set_password(password)
         # Intento la conexion.
         cx=SamDB(url='ldap://localhost',lp=lp,credentials=badge)
+        print("cx returned: %s" % cx)
+        # Get the domain from the SamDB and store it
+        self.domain=cx.domain_dn()
         # Listo, la gracia es que si logre autenticarme con estos datos, y hay algun
         # resultado de mis acciones, voy a devolver algo. 
         return cx
@@ -89,6 +112,16 @@ class SambaServer(object):
             guidhex=uuid.UUID(bytes=objectguid)
             grupos.append({'group':grupo.get("samaccountname",idx=0),'description':grupo.get("description",idx=0),'dn':grupo.get("dn",idx=0),'objectguid':grupo.get("objectguid",idx=0),'key':guidhex.hex})
         return grupos
+    def list_user_groups(self,username):
+        # Lists the groups that the user belongs to
+        cx=self.conectar()
+        print("list_user_groups: obtaining the list of groups for the user %s" % username)
+        search_result=cx.search(self.domain,scope=2,expression="(sAMAccountName=%s)",attrs=["memberOf"])
+        groups=[]
+        for group in search_result:
+            print("Grupo encontrado: %s" % group)
+            groups.append({'group':group.get("samaccountname",idx=0)})
+        print("Grupos: %s" % groups)
     def pertenece_grupo(self,username,groupname):
         pertenece=False
         # Informa si el usuario pertenece al grupo que se pide

@@ -51,7 +51,7 @@ def get_user(request):
     if request.authorization is not None:
         print("get_user: el userid no es None. Consulto Samba")
         # Consulto el servidor de Samba con el user id del request.
-        server=SambaServer()
+        server=SambaServer.getInstance()
         user=server.search_user_by_userid(request.authorization)
         # este nombre de grupo tendria que ser leido de la configuracion, pero primero probemos si 
         # anda asi.
