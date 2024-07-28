@@ -14,7 +14,7 @@ requires = [
     'pyramid_chameleon==0.3',
     'pyramid_jinja2==2.8',
     'pyramid_debugtoolbar==4.9',
-    'waitress==2.1.1',
+    'waitress==2.1.2',
     'secureconfig==0.2.0a0',
     'WTForms==2.3.3',
     'reconfigure==0.1.82'
