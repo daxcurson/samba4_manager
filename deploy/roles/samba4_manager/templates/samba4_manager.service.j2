@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Samba4 Manager web application
+Documentation=https://github.com/daxcurson/samba4_manager
+After=network-online.target samba.service samba-ad-dc.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ samba4_manager_user }}
+Group={{ samba4_manager_user }}
+WorkingDirectory={{ samba4_manager_state_dir }}
+StateDirectory={{ samba4_manager_state_dir | basename }}
+Environment=HOME={{ samba4_manager_state_dir }}
+# Print Python output straight to the journal.
+Environment=PYTHONUNBUFFERED=1
+ExecStart={{ _s4m_venv }}/bin/pserve {{ samba4_manager_config_dir }}/production.ini
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the app only needs to talk to Samba over ldap://localhost.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=full
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

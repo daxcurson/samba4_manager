@@ -1,4 +1,8 @@
+import logging
+import secrets
+
 from pyramid.config import Configurator
+from pyramid.settings import asbool
 from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.session import SignedCookieSessionFactory
@@ -8,13 +12,33 @@ from .authorization import SambaAdminAuthenticationPolicy
 from .authentication import SambaSecurityPolicy
 from .model import User
 
+log = logging.getLogger(__name__)
+
+
+def _get_secret(settings, key):
+    """Return the secret configured in the .ini file under ``key``.
+
+    If it is missing, a random secret is generated for this process only, so
+    sessions will not survive a restart. Production installs must set it.
+    """
+    secret = settings.get(key)
+    if not secret:
+        log.warning("%s is not set; using a random secret for this process", key)
+        secret = secrets.token_hex(32)
+    return secret
+
+
 def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
-    samba_session_factory=SignedCookieSessionFactory('itsaseekreet')
+    # Cookies flagged "secure" are only sent over HTTPS; enable it in production.
+    secure_cookies = asbool(settings.get('samba4_manager.secure_cookies', False))
+    samba_session_factory=SignedCookieSessionFactory(
+        _get_secret(settings, 'samba4_manager.session_secret'),
+        secure=secure_cookies,
+        httponly=True)
     config = Configurator(settings=settings,session_factory=samba_session_factory)
     config.include('pyramid_jinja2')
-    config.add_static_view('deform_static', 'deform:static/')
     config.add_static_view('static', 'samba4_manager:static')
     config.add_request_method(get_user, 'user', reify=True)
     config.add_route('login','/login')
@@ -41,7 +65,9 @@ def main(global_config, **settings):
     #authz_policy = ACLAuthorizationPolicy()
     #config.set_authentication_policy(authn_policy)
     #config.set_authorization_policy(authz_policy)
-    config.set_security_policy(SambaSecurityPolicy('sosecret'))
+    config.set_security_policy(SambaSecurityPolicy(
+        _get_secret(settings, 'samba4_manager.auth_secret'),
+        secure=secure_cookies))
     config.set_root_factory(lambda request: SambaAdminPermissions(request))
     config.scan()
     return config.make_wsgi_app()

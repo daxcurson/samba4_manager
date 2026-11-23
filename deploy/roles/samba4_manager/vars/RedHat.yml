@@ -1,0 +1,25 @@
+---
+# RHEL, Rocky, AlmaLinux, CentOS Stream. These distributions do not ship a
+# Samba AD DC; if you built Samba yourself, set
+# samba4_manager_samba_python_packages: [] and point samba4_manager_python
+# at an interpreter that can import samba.
+_s4m_packages:
+  - git
+  - openssl
+  - python3
+  - httpd
+  - mod_ssl
+_s4m_samba_python_packages:
+  - python3-samba
+
+_s4m_apache_service: httpd
+_s4m_apache_ctl: apachectl
+_s4m_apache_conf: /etc/httpd/conf.d/samba4_manager.conf
+_s4m_apache_log_dir: /var/log/httpd
+_s4m_apache_modules: []
+_s4m_apache_site_name: ""
+
+_s4m_tls_cert_default: /etc/pki/tls/certs/samba4_manager.crt
+_s4m_tls_key_default: /etc/pki/tls/private/samba4_manager.key
+
+_s4m_nologin: /usr/sbin/nologin
