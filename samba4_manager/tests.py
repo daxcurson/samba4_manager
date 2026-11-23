@@ -131,6 +131,19 @@ class FakeSambaServer(object):
     def listar_grupos(self):
         return []
 
+    def listar_ous(self):
+        return [('DC=test,DC=lan', 'DC=test,DC=lan', 0),
+                ('OU=Empresa,DC=test,DC=lan', 'Empresa', 1),
+                ('OU=Ventas\\, Norte,OU=Empresa,DC=test,DC=lan', 'Ventas, Norte', 2)]
+
+    def crear_ou(self, name, parent, description=''):
+        from samba_server import SambaError
+        if FakeSambaServer.refuse_with:
+            raise SambaError(FakeSambaServer.refuse_with)
+        FakeSambaServer.created.append({'kind': 'ou', 'acting_as': self.username, 'name': name,
+                                        'parent': parent, 'description': description})
+        return 'OU=%s,%s' % (name, parent)
+
     def crear_usuario(self, username, password, container, given_name='', surname='',
                       description='', must_change_password=True, enabled=True):
         from samba_server import SambaError
@@ -540,6 +553,60 @@ class AddGroupTests(AddAccountTestCase):
     def test_requires_csrf_token(self):
         self.app.post('/agregar_grupo_grabar', {'samaccountname': 'x'}, status=400)
         self.assertEqual(FakeSambaServer.created, [])
+
+
+class AddOUTests(AddAccountTestCase):
+    def test_sidebar_links_to_the_page(self):
+        self.assertIn('href="/agregar_ou"', self.app.get('/').text)
+
+    def test_offers_the_domain_and_its_ous_as_a_tree(self):
+        res = self.app.get('/agregar_ou')
+        form = res.forms['ou-form']
+        self.assertEqual(form.action, '/agregar_ou_grabar')
+        options = form['parent'].options
+        self.assertEqual([value for value, selected, text in options], [
+            'DC=test,DC=lan', 'OU=Empresa,DC=test,DC=lan',
+            'OU=Ventas\\, Norte,OU=Empresa,DC=test,DC=lan'])
+        self.assertEqual(options[0][2], 'DC=test,DC=lan (top level)')
+        self.assertEqual(options[2][2], '\u00a0' * 8 + 'Ventas, Norte')
+        self.assertIn('id="ou-tree"', res.text)
+
+    def test_creates_the_ou(self):
+        form = self.app.get('/agregar_ou').forms['ou-form']
+        form['name'] = ' Grupos '
+        form['parent'] = 'OU=Empresa,DC=test,DC=lan'
+        form['description'] = 'All the groups'
+        res = form.submit()
+        self.assertEqual(res.status_int, 302)
+        self.assertTrue(res.location.endswith('/agregar_ou'))
+        self.assertEqual(FakeSambaServer.created, [{
+            'kind': 'ou', 'acting_as': 'admin', 'name': 'Grupos',
+            'parent': 'OU=Empresa,DC=test,DC=lan', 'description': 'All the groups'}])
+        self.assertIn('The organizational unit &#34;Grupos&#34; was created.', res.follow().text)
+
+    def test_name_is_required(self):
+        res = self.app.get('/agregar_ou').forms['ou-form'].submit()
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_parent_must_be_one_of_the_list(self):
+        fields = dict(self.app.get('/agregar_ou').forms['ou-form'].submit_fields())
+        fields.update(name='X', parent='CN=Users,DC=test,DC=lan')
+        res = self.app.post('/agregar_ou_grabar', fields)
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_requires_csrf_token(self):
+        self.app.post('/agregar_ou_grabar', {'name': 'X', 'parent': 'DC=test,DC=lan'}, status=400)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_shows_what_samba_refused(self):
+        FakeSambaServer.refuse_with = 'There is already an OU called "Grupos" there.'
+        form = self.app.get('/agregar_ou').forms['ou-form']
+        form['name'] = 'Grupos'
+        res = form.submit()
+        self.assertEqual(res.status_int, 200)
+        self.assertIn('There is already an OU called &#34;Grupos&#34; there.', res.text)
 
 
 class GroupTypeTests(unittest.TestCase):

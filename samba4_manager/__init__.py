@@ -50,6 +50,8 @@ def main(global_config, **settings):
     config.add_route('agregar_usuario_grabar_form','/agregar_usuario_grabar')
     config.add_route('agregar_grupo','/agregar_grupo')
     config.add_route('agregar_grupo_grabar_form','/agregar_grupo_grabar')
+    config.add_route('agregar_ou','/agregar_ou')
+    config.add_route('agregar_ou_grabar_form','/agregar_ou_grabar')
     config.add_route('agregar_computadora','/agregar_computadora')
     config.add_route('editar_usuario_mostrar_form','/editar_usuario/{objectguid}')
     config.add_route('editar_usuario_grabar_form','/editar_usuario_grabar')

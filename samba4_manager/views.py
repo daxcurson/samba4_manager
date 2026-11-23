@@ -4,7 +4,7 @@ from samba_server import SambaServer, SambaError
 from pyramid.view import view_config, forbidden_view_config
 from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
-from samba4_manager.model import UserForm, ComputerForm, GroupForm, ShareForm, AddUserForm, AddGroupForm
+from samba4_manager.model import UserForm, ComputerForm, GroupForm, ShareForm, AddUserForm, AddGroupForm, AddOUForm
 from samba4_config_writer import SambaConfigWriter
 #from asn1crypto._ffi import null
 
@@ -108,6 +108,16 @@ class SambaAdminViews(object):
         # Sin datos enviados (GET) el formulario usa sus valores por defecto.
         form=AddGroupForm(req_post or None)
         form.container.choices=[(dn, dn) for dn in self.samba_server.listar_contenedores()]
+        return form
+    def form_add_ou(self,req_post):
+        # Sin datos enviados (GET) el formulario usa sus valores por defecto.
+        form=AddOUForm(req_post or None)
+        ous=self.samba_server.listar_ous()
+        # Las OUs se muestran indentadas segun su profundidad, como un arbol.
+        form.parent.choices=[
+            (dn, nombre+' (top level)' if profundidad==0
+             else '\u00a0\u00a0\u00a0\u00a0'*profundidad+nombre)
+            for dn, nombre, profundidad in ous]
         return form
     def form_edit_user(self,req_post,usuario):
         # Cargo los valores en el formulario
@@ -230,6 +240,29 @@ class SambaAdminViews(object):
                     'editar_grupo_mostrar_form', objectguid=objectguid))
         return {'form':form, 'error':error}
 
+    @view_config(route_name='agregar_ou',renderer='templates/agregar_ou.jinja2',
+                 permission="edit")
+    def agregar_ou_mostrar_form(self):
+        """Show an empty form to add an OU; it is sent to agregar_ou_grabar_form."""
+        form=self.form_add_ou(None)
+        return {'form':form, 'error':None, 'saved':self.request.session.pop_flash()}
+    @view_config(route_name='agregar_ou_grabar_form',renderer='templates/agregar_ou.jinja2',
+                 permission="edit", require_csrf=True)
+    def agregar_ou_grabar_form(self):
+        """Create the OU in Samba, or show the form again with what went wrong."""
+        form=self.form_add_ou(self.request.POST)
+        error=None
+        if self.request.method=='POST' and form.validate():
+            nombre=form.name.data.strip()
+            try:
+                self.samba_server.crear_ou(nombre, form.parent.data,
+                                           description=(form.description.data or '').strip())
+            except SambaError as e:
+                error=str(e)
+            else:
+                self.request.session.flash('The organizational unit "%s" was created.' % nombre)
+                raise pyramid.httpexceptions.HTTPFound(self.request.route_url('agregar_ou'))
+        return {'form':form, 'error':error, 'saved':[]}
     @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2',
                  permission="edit", require_csrf=True)
     def editar_grupo_mostrar_form(self):

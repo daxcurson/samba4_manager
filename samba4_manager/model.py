@@ -45,6 +45,12 @@ class AddGroupForm(Form):
                             default='security')
     container = SelectField('Create in', choices=[])
 
+class AddOUForm(Form):
+    name = StringField('Name', [validators.InputRequired(), validators.Length(max=64)])
+    description = StringField('Description', [validators.Optional(), validators.Length(max=1024)])
+    # Choices are the domain and its OUs, set by the view.
+    parent = SelectField('Create in', choices=[])
+
 class MultiCheckboxField(SelectMultipleField):
     """A multiple choice rendered as a list of checkboxes."""
     widget = widgets.ListWidget(prefix_label=False)
