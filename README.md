@@ -75,6 +75,8 @@ WSGIScriptAlias /samba4_manager /var/www/html/samba4_manager/pyramid.wsgi
 </Directory>
 ```
 
+Keep a single daemon process (the default; any number of `threads` is fine): each logged-in user's Samba credentials are kept in the application's memory, so a request served by another process would not find them.
+
 `pyramid.wsgi` reads its configuration from `/etc/samba4_manager/production.ini`; set the `SAMBA4_MANAGER_INI` environment variable to use another file.
 
 ### As a standalone application

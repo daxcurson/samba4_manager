@@ -8,6 +8,9 @@
       <div class="card card-login mx-auto mt-5">
         <div class="card-header">Login</div>
         <div class="card-body">
+          {% if message %}
+          <div class="alert alert-danger" role="alert">{{ message }}</div>
+          {% endif %}
           <form action="{{ request.route_path('listar_usuarios') }}" method="post">
             <div class="form-group">
               <div class="form-label-group">

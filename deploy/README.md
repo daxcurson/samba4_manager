@@ -87,6 +87,8 @@ These are the ones you are most likely to change:
 | `samba4_manager_port` | `6543` | Local port the application listens on |
 | `samba4_manager_manage_firewall` | `true` | Open HTTP/HTTPS in firewalld if it is running |
 | `samba4_manager_selinux_allow_proxy` | `true` | Enable `httpd_can_network_connect` so Apache can reach the app |
+| `samba4_manager_session_timeout_minutes` | `30` | Inactivity time after which users must log in again |
+| `samba4_manager_admin_group_sids` | `[S-1-5-32-544]` (BUILTIN\\Administrators) | Groups whose members may log in; nested membership counts |
 | `samba4_manager_log_level` | `WARN` | Application log level |
 
 ## Things to know
@@ -101,6 +103,10 @@ These are the ones you are most likely to change:
 - **Port 80.** If no other virtual host exists, the HTTP-to-HTTPS virtual
   host becomes Apache's default for port 80. It only redirects the
   application path, so other content on port 80 keeps working.
+- **Logins and restarts.** Each session keeps its user's credentials in the
+  application's memory only; the browser just gets a random token. So
+  restarting the service (which the playbook does when it updates the app)
+  logs everyone out.
 - **Secrets.** Cookie secrets are generated on the server and never leave it.
   To manage them yourself, set `samba4_manager_session_secret` and
   `samba4_manager_auth_secret`, ideally with Ansible Vault.
