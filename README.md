@@ -7,7 +7,7 @@ This tool is a web application that will provide user management for Samba. It i
 
 It will allow for creation, modification and deletion of users and groups, with the ultimate goal to replicate the functions of the "Active Directory Users and Groups".
 
-Both Python 2.7 and 3.6 are supported for this application.
+Python 3.6 or later is required.
 
 ## Motivation
 
@@ -16,6 +16,22 @@ The GUI tools available for Linux are general-purpose configuration editors such
 The use of Python for the creation of this tool is to make use of the Python bindings for Samba4, which make direct use of internal Samba data structures. And it can be a good excuse to learn the Python language in the process ;-). 
 
 ## Installation
+
+### Automated installation (recommended)
+
+The [`deploy/`](deploy/README.md) directory contains an Ansible playbook. It
+installs the application on a Samba AD domain controller as a systemd
+service, behind Apache with HTTPS. It works on Fedora, RHEL-like and
+Debian/Ubuntu systems:
+
+```
+cd deploy
+cp inventory.example.ini inventory.ini   # then edit it
+ansible-playbook site.yml --ask-become-pass
+```
+
+See [deploy/README.md](deploy/README.md) for the details. The sections below
+describe a manual installation.
 
 ### Pre-requisites
 
@@ -36,7 +52,7 @@ To find the required configuration that is needed for Apache to be configured to
 For now, the process to release the application as a Python package nas not been completed. To deploy this application, the following steps need to be performed:
 
 1. git clone of this repository into a folder available to the web server.
-2. pip install -e .
+2. pip install -e . (add `".[dev]"` to get the debug toolbar used by development.ini)
 3. Configure to launch from either the web server or the standalone tool "pserve"
 
 ### As a HTTP module
@@ -59,7 +75,7 @@ WSGIScriptAlias /samba4_manager /var/www/html/samba4_manager/pyramid.wsgi
 </Directory>
 ```
 
-Python 3.6 is not necessarily required, the application can run just as well using Python 2.7. 
+`pyramid.wsgi` reads its configuration from `/etc/samba4_manager/production.ini`; set the `SAMBA4_MANAGER_INI` environment variable to use another file.
 
 ### As a standalone application
 

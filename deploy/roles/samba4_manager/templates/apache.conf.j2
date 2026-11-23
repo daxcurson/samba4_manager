@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+# Samba4 Manager: Apache publishes the application (listening on
+# 127.0.0.1:{{ samba4_manager_port }}) at https://{{ samba4_manager_server_name }}{{ _s4m_prefix }}/
+{% if samba4_manager_http_redirect %}
+
+<VirtualHost *:80>
+    ServerName {{ samba4_manager_server_name }}
+    # Only the application path is redirected; the rest of the site is untouched.
+    RedirectMatch permanent "^{{ _s4m_prefix }}(/.*)?$" "https://{{ samba4_manager_server_name }}{{ _s4m_prefix }}$1"
+</VirtualHost>
+{% endif %}
+
+<VirtualHost *:443>
+    ServerName {{ samba4_manager_server_name }}
+
+    SSLEngine on
+    SSLCertificateFile {{ _s4m_tls_cert }}
+    SSLCertificateKeyFile {{ _s4m_tls_key }}
+
+    ErrorLog {{ _s4m_apache_log_dir }}/samba4_manager_error.log
+    CustomLog {{ _s4m_apache_log_dir }}/samba4_manager_access.log combined
+
+    ProxyRequests Off
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Port "443"
+
+{% if _s4m_prefix %}
+    RedirectMatch permanent "^{{ _s4m_prefix }}$" "{{ _s4m_prefix }}/"
+    ProxyPass "{{ _s4m_prefix }}/" "http://127.0.0.1:{{ samba4_manager_port }}{{ _s4m_prefix }}/"
+    ProxyPassReverse "{{ _s4m_prefix }}/" "http://127.0.0.1:{{ samba4_manager_port }}{{ _s4m_prefix }}/"
+{% else %}
+    ProxyPass "/" "http://127.0.0.1:{{ samba4_manager_port }}/"
+    ProxyPassReverse "/" "http://127.0.0.1:{{ samba4_manager_port }}/"
+{% endif %}
+</VirtualHost>

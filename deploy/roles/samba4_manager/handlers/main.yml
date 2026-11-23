@@ -1,0 +1,17 @@
+---
+- name: Restart samba4_manager
+  ansible.builtin.systemd:
+    name: samba4_manager
+    state: restarted
+    daemon_reload: true
+  tags: [systemd]
+
+- name: Restart Apache
+  ansible.builtin.service:
+    name: "{{ _s4m_apache_service }}"
+    state: restarted
+
+- name: Reload Apache
+  ansible.builtin.service:
+    name: "{{ _s4m_apache_service }}"
+    state: reloaded

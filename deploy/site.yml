@@ -1,0 +1,8 @@
+---
+# Installs or updates Samba4 Manager on the Samba AD domain controllers in the
+# "samba4_manager" inventory group. See deploy/README.md.
+- name: Deploy Samba4 Manager
+  hosts: samba4_manager
+  become: true
+  roles:
+    - samba4_manager

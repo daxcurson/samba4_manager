@@ -1,0 +1,194 @@
+---
+- name: Load distribution-specific settings
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_distribution }}.yml"
+        - "{{ ansible_os_family }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+      skip: true
+
+- name: Fail on unsupported distributions
+  ansible.builtin.fail:
+    msg: >-
+      {{ ansible_distribution }} ({{ ansible_os_family }} family) is not supported yet.
+      Supported: Fedora, RHEL-like systems and Debian/Ubuntu. To add another
+      distribution, create roles/samba4_manager/vars/{{ ansible_os_family }}.yml
+      modelled on Debian.yml.
+  when: _s4m_packages is not defined
+
+- name: Compute paths
+  ansible.builtin.set_fact:
+    _s4m_src: "{{ samba4_manager_install_dir }}/src"
+    _s4m_venv: "{{ samba4_manager_install_dir }}/venv"
+    _s4m_marker: "{{ samba4_manager_install_dir }}/.installed-commit"
+    _s4m_prefix: "{{ samba4_manager_url_path | regex_replace('/+$', '') }}"
+    _s4m_tls_cert: "{{ samba4_manager_tls_cert or _s4m_tls_cert_default }}"
+    _s4m_tls_key: "{{ samba4_manager_tls_key or _s4m_tls_key_default }}"
+
+- name: Check the URL path
+  ansible.builtin.assert:
+    that: samba4_manager_url_path is match('^/')
+    fail_msg: "samba4_manager_url_path must start with '/' (got '{{ samba4_manager_url_path }}')"
+    quiet: true
+
+# ---------------------------------------------------------------- packages
+- name: Install required packages
+  ansible.builtin.package:
+    name: "{{ _s4m_packages + samba4_manager_samba_python_packages }}"
+    state: present
+
+- name: Find a Python interpreter that can import the Samba bindings
+  ansible.builtin.shell: |
+    for py in {{ samba4_manager_python_candidates | join(' ') }}; do
+      if [ -x "$py" ] && "$py" -c 'import samba.samdb' >/dev/null 2>&1; then
+        echo "$py"
+        exit 0
+      fi
+    done
+    exit 1
+  args:
+    executable: /bin/sh
+  register: _s4m_python_probe
+  changed_when: false
+  failed_when: false
+  when: not samba4_manager_python
+
+- name: Stop if no interpreter can import samba
+  ansible.builtin.fail:
+    msg: >-
+      None of {{ samba4_manager_python_candidates | join(', ') }} can "import samba.samdb".
+      Check that the Samba Python bindings are installed, or set samba4_manager_python
+      to the interpreter they were built for.
+  when: not samba4_manager_python and _s4m_python_probe.rc != 0
+
+- name: Select the Python interpreter
+  ansible.builtin.set_fact:
+    _s4m_python: "{{ samba4_manager_python or _s4m_python_probe.stdout | trim }}"
+
+# ---------------------------------------------------------------- user and directories
+- name: Create the service account
+  ansible.builtin.user:
+    name: "{{ samba4_manager_user }}"
+    system: true
+    shell: "{{ _s4m_nologin }}"
+    home: "{{ samba4_manager_state_dir }}"
+    create_home: false
+
+- name: Create directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ samba4_manager_install_dir }}", group: root, mode: "0755" }
+    - { path: "{{ samba4_manager_config_dir }}", group: "{{ samba4_manager_user }}", mode: "0750" }
+
+# ---------------------------------------------------------------- application code
+- name: Fetch the application source
+  ansible.builtin.git:
+    repo: "{{ samba4_manager_git_repo }}"
+    dest: "{{ _s4m_src }}"
+    version: "{{ samba4_manager_version }}"
+    force: true
+  register: _s4m_git
+
+# The venv must be rebuilt when the system Python changes (e.g. after a
+# distribution upgrade), otherwise the Samba bindings stop loading.
+- name: Check whether the virtualenv still works
+  ansible.builtin.command:
+    cmd: "{{ _s4m_venv }}/bin/python -c 'import samba.samdb, pyramid'"
+  register: _s4m_venv_check
+  changed_when: false
+  failed_when: false
+
+- name: Remove a broken virtualenv
+  ansible.builtin.file:
+    path: "{{ _s4m_venv }}"
+    state: absent
+  when: _s4m_venv_check.rc != 0
+
+- name: Create the virtualenv (with access to the system Samba bindings)
+  ansible.builtin.command:
+    cmd: "{{ _s4m_python }} -m venv --system-site-packages {{ _s4m_venv }}"
+    creates: "{{ _s4m_venv }}/bin/python"
+
+- name: Read the commit currently installed
+  ansible.builtin.command:
+    cmd: "cat {{ _s4m_marker }}"
+  register: _s4m_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install the application into the virtualenv
+  ansible.builtin.command:
+    cmd: "{{ _s4m_venv }}/bin/pip install --disable-pip-version-check {{ _s4m_src }}"
+  when: _s4m_venv_check.rc != 0 or (_s4m_installed.stdout | trim) != _s4m_git.after
+  notify: Restart samba4_manager
+
+- name: Record the installed commit
+  ansible.builtin.copy:
+    content: "{{ _s4m_git.after }}\n"
+    dest: "{{ _s4m_marker }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# ---------------------------------------------------------------- configuration
+- name: Generate cookie secrets (first run only)
+  ansible.builtin.shell: |
+    umask 077
+    openssl rand -hex 32 > {{ samba4_manager_config_dir }}/{{ item }}
+  args:
+    creates: "{{ samba4_manager_config_dir }}/{{ item }}"
+  loop:
+    - session_secret
+    - auth_secret
+
+- name: Read cookie secrets
+  ansible.builtin.slurp:
+    src: "{{ samba4_manager_config_dir }}/{{ item }}"
+  loop:
+    - session_secret
+    - auth_secret
+  register: _s4m_secret_files
+  no_log: true
+
+- name: Write the application configuration
+  ansible.builtin.template:
+    src: production.ini.j2
+    dest: "{{ samba4_manager_config_dir }}/production.ini"
+    owner: root
+    group: "{{ samba4_manager_user }}"
+    mode: "0640"
+  vars:
+    _s4m_session_secret: "{{ samba4_manager_session_secret or (_s4m_secret_files.results[0].content | b64decode | trim) }}"
+    _s4m_auth_secret: "{{ samba4_manager_auth_secret or (_s4m_secret_files.results[1].content | b64decode | trim) }}"
+  notify: Restart samba4_manager
+
+# ---------------------------------------------------------------- systemd service
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: samba4_manager.service.j2
+    dest: /etc/systemd/system/samba4_manager.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart samba4_manager
+  tags: [systemd]
+
+- name: Enable and start the application service
+  ansible.builtin.systemd:
+    name: samba4_manager
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [systemd]
+
+# ---------------------------------------------------------------- Apache, TLS, firewall
+- name: Apache, TLS and firewall
+  ansible.builtin.import_tasks: apache.yml

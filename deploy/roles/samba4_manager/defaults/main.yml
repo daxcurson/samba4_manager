@@ -1,0 +1,65 @@
+---
+# Default settings for the samba4_manager role.
+# Override any of these in your inventory, in group_vars/host_vars, or with -e.
+
+# Where the application source comes from, and which branch, tag or commit to deploy.
+samba4_manager_git_repo: https://github.com/daxcurson/samba4_manager.git
+samba4_manager_version: master
+
+# System account that runs the application. It does not need root: the app
+# talks to Samba over ldap://localhost with the credentials typed at login.
+samba4_manager_user: samba4mgr
+
+# Install locations.
+samba4_manager_install_dir: /opt/samba4_manager
+samba4_manager_config_dir: /etc/samba4_manager
+samba4_manager_state_dir: /var/lib/samba4_manager
+
+# Distribution packages that provide the Samba Python bindings. Set to [] if
+# Samba was built from source and its bindings are already installed.
+samba4_manager_samba_python_packages: "{{ _s4m_samba_python_packages }}"
+
+# Python interpreter used to build the virtualenv. It must be able to
+# "import samba", i.e. the interpreter the distribution's Samba bindings were
+# built for. Leave empty to detect it automatically.
+samba4_manager_python: ""
+samba4_manager_python_candidates:
+  - /usr/bin/python3
+  - /usr/bin/python3.[0-9]*
+
+# The application listens only on localhost; Apache is the public entry point.
+samba4_manager_port: 6543
+
+# URL path under which Apache publishes the app, e.g. https://dc1.example.com/samba4_manager/
+# Use "/" to publish it at the root of the site.
+samba4_manager_url_path: /samba4_manager
+
+# Host name users type in the browser. Apache selects the virtual host by this name.
+samba4_manager_server_name: "{{ ansible_fqdn }}"
+
+# TLS certificate and key for Apache. Leave both empty to generate a
+# self-signed certificate (fine for testing; browsers will warn).
+samba4_manager_tls_cert: ""
+samba4_manager_tls_key: ""
+samba4_manager_tls_selfsigned_days: 825
+
+# Redirect http://<server_name><url_path> to HTTPS.
+samba4_manager_http_redirect: true
+
+# Open HTTP/HTTPS in firewalld when it is running.
+samba4_manager_manage_firewall: true
+
+# On SELinux systems, let Apache open the proxy connection to the app
+# (sets the httpd_can_network_connect boolean).
+samba4_manager_selinux_allow_proxy: true
+
+# Session/authentication cookie secrets. Leave empty to have random ones
+# generated on the server the first time (stored in samba4_manager_config_dir).
+samba4_manager_session_secret: ""
+samba4_manager_auth_secret: ""
+
+# Log level for the application (DEBUG, INFO, WARN, ERROR). Logs go to the journal.
+samba4_manager_log_level: WARN
+
+# Number of worker threads in the application server.
+samba4_manager_threads: 4

@@ -1,0 +1,113 @@
+---
+- name: Generate a self-signed TLS certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:3072
+      - -nodes
+      - -days
+      - "{{ samba4_manager_tls_selfsigned_days }}"
+      - -subj
+      - "/CN={{ samba4_manager_server_name }}"
+      - -addext
+      - "subjectAltName=DNS:{{ samba4_manager_server_name }}"
+      - -keyout
+      - "{{ _s4m_tls_key }}"
+      - -out
+      - "{{ _s4m_tls_cert }}"
+    creates: "{{ _s4m_tls_cert }}"
+  when: not samba4_manager_tls_cert
+  notify: Reload Apache
+
+- name: Restrict access to the self-signed key
+  ansible.builtin.file:
+    path: "{{ _s4m_tls_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: not samba4_manager_tls_cert
+
+- name: Enable the Apache modules the proxy needs
+  ansible.builtin.command:
+    cmd: "a2enmod {{ item }}"
+  loop: "{{ _s4m_apache_modules }}"
+  register: _s4m_a2enmod
+  changed_when: "'already enabled' not in _s4m_a2enmod.stdout"
+  notify: Restart Apache
+
+- name: Write the Apache configuration
+  ansible.builtin.template:
+    src: apache.conf.j2
+    dest: "{{ _s4m_apache_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Enable the Apache site
+  ansible.builtin.command:
+    cmd: "a2ensite {{ _s4m_apache_site_name }}"
+  register: _s4m_a2ensite
+  changed_when: "'already enabled' not in _s4m_a2ensite.stdout"
+  when: _s4m_apache_site_name | length > 0
+  notify: Reload Apache
+
+- name: Check the Apache configuration
+  ansible.builtin.command:
+    cmd: "{{ _s4m_apache_ctl }} -t"
+  changed_when: false
+
+- name: Check SELinux mode
+  ansible.builtin.command:
+    cmd: getenforce
+  register: _s4m_getenforce
+  changed_when: false
+  failed_when: false
+  when: samba4_manager_selinux_allow_proxy
+
+- name: Read the SELinux boolean httpd_can_network_connect
+  ansible.builtin.command:
+    cmd: getsebool httpd_can_network_connect
+  register: _s4m_getsebool
+  changed_when: false
+  when:
+    - samba4_manager_selinux_allow_proxy
+    - _s4m_getenforce.rc == 0
+    - _s4m_getenforce.stdout | trim != 'Disabled'
+
+- name: Let Apache connect to the application (SELinux)
+  ansible.builtin.command:
+    cmd: setsebool -P httpd_can_network_connect on
+  when:
+    - _s4m_getsebool is not skipped
+    - "'--> off' in _s4m_getsebool.stdout"
+
+- name: Enable and start Apache
+  ansible.builtin.service:
+    name: "{{ _s4m_apache_service }}"
+    enabled: true
+    state: started
+
+- name: Check whether firewalld is running
+  ansible.builtin.command:
+    cmd: firewall-cmd --state
+  register: _s4m_firewalld
+  changed_when: false
+  failed_when: false
+  when: samba4_manager_manage_firewall
+  tags: [firewall]
+
+- name: Open HTTP and HTTPS in firewalld
+  ansible.builtin.shell: |
+    firewall-cmd --permanent --query-service={{ item }} && exit 0
+    firewall-cmd --permanent --add-service={{ item }} && firewall-cmd --reload && echo CHANGED
+  register: _s4m_fw
+  changed_when: "'CHANGED' in _s4m_fw.stdout"
+  loop: "{{ ['https'] + (['http'] if samba4_manager_http_redirect else []) }}"
+  when:
+    - samba4_manager_manage_firewall
+    - _s4m_firewalld.rc == 0
+  tags: [firewall]
