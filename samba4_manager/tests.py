@@ -81,6 +81,17 @@ class FakeSambaServer(object):
     def es_miembro_de_alguno(self, group_sids):
         return self.username in ADMINS
 
+    def get_domain(self):
+        return 'DC=test,DC=lan'
+
+    def search_root(self):
+        return [{'dn': 'CN=Users,DC=test,DC=lan', 'objectguid': 'aa' * 16}]
+
+    def search_children(self, objectguid):
+        from samba_server import guid_base_dn
+        guid_base_dn(objectguid)  # rejects invalid ids, like the real search
+        return [{'dn': 'CN=Administrator,CN=Users,DC=test,DC=lan', 'objectguid': 'bb' * 16}]
+
     def listar_usuarios(self):
         # Report which credentials the request used.
         return [{'user': 'acting-as-%s' % self.username,
@@ -94,7 +105,9 @@ SETTINGS = {
 }
 
 
-class LoginTests(unittest.TestCase):
+class AppTestCase(unittest.TestCase):
+    """Runs the real app with FakeSambaServer instead of Samba."""
+
     def setUp(self):
         patcher = mock.patch('samba4_manager.SambaServer', FakeSambaServer)
         patcher.start()
@@ -115,6 +128,9 @@ class LoginTests(unittest.TestCase):
             'submitted': 'Login',
             'came_from': 'http://localhost/',
         })
+
+
+class LoginTests(AppTestCase):
 
     def test_requires_login(self):
         res = self.make_app().get('/')
@@ -209,6 +225,47 @@ class LoginTests(unittest.TestCase):
         other = TestApp(app.app)
         other.set_cookie('auth_tkt', app.cookies['auth_tkt'])
         self.assertIn(b'inputPassword', other.get('/').body)
+
+
+class AdvancedTreeTests(AppTestCase):
+    """The Advanced Editing tree (jstree) loads branches from /listar_subrama."""
+
+    def logged_in_app(self):
+        app = self.make_app()
+        self.login(app, 'admin', 'pw-admin')
+        return app
+
+    def test_root_returns_the_domain_node_with_its_children(self):
+        res = self.logged_in_app().get('/listar_subrama', {'id': '#'})
+        self.assertEqual(res.json['text'], 'DC=test,DC=lan')
+        self.assertEqual([c['id'] for c in res.json['children']], ['aa' * 16])
+        self.assertTrue(res.json['children'][0]['children'])  # can be expanded
+
+    def test_branch_returns_only_its_children(self):
+        # jstree expects the list of children, not the expanded node itself.
+        res = self.logged_in_app().get('/listar_subrama', {'id': 'aa' * 16})
+        self.assertIsInstance(res.json, list)
+        self.assertEqual([c['id'] for c in res.json], ['bb' * 16])
+        self.assertEqual(res.json[0]['text'], 'CN=Administrator,CN=Users,DC=test,DC=lan')
+
+    def test_invalid_id_is_a_bad_request(self):
+        app = self.logged_in_app()
+        app.get('/listar_subrama', {'id': 'not-a-guid'}, status=400)
+        app.get('/listar_subrama', status=400)
+
+
+class GuidTests(unittest.TestCase):
+    def test_guid_base_dn(self):
+        from samba_server import guid_base_dn
+        # Checked against a real Samba DC: the tree id of CN=LostAndFound
+        # (hex of the raw objectGUID) and the GUID Samba accepts for it.
+        self.assertEqual(guid_base_dn('1b8b034ad409f2469c1023a4745e87f1'),
+                         '<GUID=4a038b1b-09d4-46f2-9c10-23a4745e87f1>')
+
+    def test_guid_base_dn_rejects_invalid_ids(self):
+        from samba_server import guid_base_dn
+        with self.assertRaises(ValueError):
+            guid_base_dn('not-a-guid')
 
 
 class SambaServerReprTests(unittest.TestCase):

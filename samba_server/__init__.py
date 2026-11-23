@@ -19,6 +19,18 @@ log = logging.getLogger(__name__)
 BUILTIN_ADMINISTRATORS_SID = security.SID_BUILTIN_ADMINISTRATORS
 
 
+def guid_base_dn(objectguid_hex):
+    """Base DN that finds an object by the id the app uses for it.
+
+    The app identifies objects by uuid.UUID(bytes=<raw objectGUID>).hex.
+    The raw objectGUID is stored little-endian, so the GUID in its usual text
+    form (the one "<GUID=...>" expects) is uuid.UUID(bytes_le=<raw>).
+    Raises ValueError if objectguid_hex is not a valid id.
+    """
+    raw = uuid.UUID(hex=objectguid_hex).bytes
+    return "<GUID=%s>" % uuid.UUID(bytes_le=raw)
+
+
 class SambaServer(object):
     """Connection to the local Samba AD DC on behalf of one user.
 
@@ -72,8 +84,7 @@ class SambaServer(object):
         # Si objectguid viene vacio o es numeral, dar lo dependiente del dominio ).
         # El argumento es, o el nodo raiz, o el objectguid del nodo.
         cx=self.conectar()
-        guidhex=uuid.UUID(hex=objectguid)
-        search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_ONELEVEL)
+        search_result=cx.search(base=guid_base_dn(objectguid),scope=ldb.SCOPE_ONELEVEL)
         hijos=[]
         for hijo in search_result:
             objectguid=hijo.get('objectguid',idx=0)
@@ -188,11 +199,10 @@ class SambaServer(object):
         return result
     def __search_entry_private(self,objectg):
         cx=self.conectar()
-        guidhex=uuid.UUID(hex=objectg)
         # Me gustaria tomarme el credito pero no puedo, esa busqueda
         # salio del codigo fuente mismo de Samba,
         # https://download.samba.org/pub/unpacked/samba_current/source4/dsdb/tests/python/deletetest.py
-        search_result=cx.search(base="<GUID=%s>" % cx.schema_format_value("objectGUID",guidhex.bytes),scope=ldb.SCOPE_BASE)
+        search_result=cx.search(base=guid_base_dn(objectg),scope=ldb.SCOPE_BASE)
         return search_result
     def get_object_by_objectguid(self,objectg):
         # Dado el dn de un objeto, buscar todas sus propiedades.
@@ -203,7 +213,8 @@ class SambaServer(object):
             objeto.dn=resultado.get("dn",idx=0)
             objeto.samaccountname=resultado.get("samaccountname",idx=0)
             objeto.enabled=True
-            userAccountFlags=int(resultado.get("userAccountControl",idx=0))
+            # Groups have no userAccountControl.
+            userAccountFlags=int(resultado.get("userAccountControl",idx=0) or 0)
             print("Las accountflags de esta cuenta son: %d" % userAccountFlags)
             print("Valores de los Account Flags:")
             print("UF_SCRIPT: %d" % samba.dsdb.UF_SCRIPT)

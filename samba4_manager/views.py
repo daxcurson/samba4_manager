@@ -152,7 +152,7 @@ class SambaAdminViews(object):
     @view_config(route_name='editar_usuario_mostrar_form',renderer='templates/editar_usuario.jinja2',
                  permission="edit")
     def editar_usuario_mostrar_form(self):
-        objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
+        objectguid=self.request.matchdict['objectguid']
         usuario=self.samba_server.get_object_by_objectguid(objectguid)
         form=self.form_edit_user(self.request.POST,usuario)
         if self.request.method=='POST' and form.validate():
@@ -173,7 +173,7 @@ class SambaAdminViews(object):
     @view_config(route_name='editar_computadora_mostrar_form',renderer='templates/editar_computadora.jinja2',
                  permission="edit")
     def editar_computadora_mostrar_form(self):
-        objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
+        objectguid=self.request.matchdict['objectguid']
         computadora=self.samba_server.get_object_by_objectguid(objectguid)
         form=self.form_edit_computer(self.request.POST,computadora)
         if self.request.method=='POST' and form.validate():
@@ -194,7 +194,7 @@ class SambaAdminViews(object):
     @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2',
                  permission="edit")
     def editar_grupo_mostrar_form(self):
-        objectguid=self.request.matchdict['objectguid'].encode(encoding='UTF-8')
+        objectguid=self.request.matchdict['objectguid']
         grupo=self.samba_server.get_object_by_objectguid(objectguid)
         form=self.form_edit_group(self.request.POST,grupo)
         if self.request.method=='POST' and form.validate():
@@ -250,20 +250,18 @@ class SambaAdminViews(object):
         # Pido el valor del parametro id del request, y darle el valor
         # del dominio si es que vino vacio
         objectguid=self.request.params.get("id")
-        nodo_dn=""
         if(objectguid=="#"):
             # Piden el nodo raiz. Hay que pedir el dominio y crear un nodo con eso.
             nodo_dn=self.samba_server.get_domain()
             # Si objectguid es el #, hago que el objectguid del nodo sea el nombre del dominio.
-            objectguid=nodo_dn
             hijos=self.samba_server.search_root()
-        else:
-            padre=self.samba_server.search_entry_by_objectguid(objectguid)
-            nodo_dn=padre['dn']
+            return self.convertir_a_json(nodo_dn,nodo_dn,hijos)
+        # Al desplegar una rama, jstree espera solamente la lista de sus hijos.
+        try:
             hijos=self.samba_server.search_children(objectguid)
-        # Ahora bien, hay que devolver un formato esperado por esta cosa. 
-        json_return=self.convertir_a_json(nodo_dn,objectguid,hijos)
-        return json_return
+        except (ValueError, TypeError):
+            raise pyramid.httpexceptions.HTTPBadRequest("Invalid id")
+        return self.convertir_a_json("",objectguid,hijos)['children']
     def convertir_a_json(self,nodo_dn,objectguid,hijos):
         # Pasamos a Json con el formato que requiere el jstree.
         lista_hijos=[]
