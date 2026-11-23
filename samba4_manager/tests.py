@@ -152,6 +152,17 @@ class LoginTests(unittest.TestCase):
                 continue
             self.assertNotIn(b'pw-admin', decoded)
 
+    def test_login_labels_point_at_their_fields(self):
+        # The floating labels are drawn on top of the fields, so a click on a
+        # field only reaches it if the label's "for" matches the field's id.
+        import re
+        body = self.make_app().get('/login').text
+        targets = re.findall(r'<label for="([^"]+)"', body)
+        self.assertIn('inputUser', targets)
+        self.assertIn('inputPassword', targets)
+        for target in targets:
+            self.assertRegex(body, r'<input[^>]*\bid="%s"' % re.escape(target))
+
     def test_wrong_password(self):
         res = self.login(self.make_app(), 'admin', 'wrong')
         self.assertEqual(res.status_int, 200)
