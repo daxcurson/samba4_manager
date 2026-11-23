@@ -104,6 +104,11 @@ class SambaAdminViews(object):
         form.enabled.data=usuario.enabled
         form.account_type.data=usuario.account_type
         return form
+    def form_add_group(self,req_post):
+        grupo=Group()
+        form=GroupForm(req_post,usuario)
+        form.enabled.data=grupo.enabled
+        return form
     def form_edit_user(self,req_post,usuario):
         # Cargo los valores en el formulario
         form=UserForm(req_post,usuario)
@@ -191,6 +196,29 @@ class SambaAdminViews(object):
             # Aca grabo el objeto en el samba
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_computadoras'))
         return {'form':form}
+    @view_config(route_name='agregar_grupo',renderer='templates/agregar_grupo.jinja2',
+                 permission="edit")
+    def agregar_grupo_mostrar_form(self):
+        """Show an empty form to add a group"""
+        form=self.form_add_group(self.request.POST)
+        if self.request.method=='POST' and form.validate():
+            group=Group()
+            group.samaccountname=form.samaccountname.data
+            group.dn=form.dn.data
+            # Aqui hay que grabar
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
+        return {'form':form}
+    @view_config(route_name='agregar_grupo_grabar_form',renderer='templates/agregar_grupo.jinja2',
+                 permission="edit")
+    def agregar_grupo_grabar_form(self):
+        grupo=()
+        form=self.form_add_group(self.request.POST)
+        if self.request_method=='POST' and form.validate():
+            form.populate(grupo)
+            # Aca grabo el objeto en el samba
+            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
+        return {'form':form}
+
     @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2',
                  permission="edit", require_csrf=True)
     def editar_grupo_mostrar_form(self):
