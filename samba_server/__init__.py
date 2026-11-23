@@ -50,6 +50,30 @@ def describe_group_type(group_type):
     return scope, kind
 
 
+# groupType for each (type, scope) chosen when creating a group.
+GROUP_TYPES = {
+    ("security", "global"): dsdb.GTYPE_SECURITY_GLOBAL_GROUP,
+    ("security", "domain_local"): dsdb.GTYPE_SECURITY_DOMAIN_LOCAL_GROUP,
+    ("security", "universal"): dsdb.GTYPE_SECURITY_UNIVERSAL_GROUP,
+    ("distribution", "global"): dsdb.GTYPE_DISTRIBUTION_GLOBAL_GROUP,
+    ("distribution", "domain_local"): dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP,
+    ("distribution", "universal"): dsdb.GTYPE_DISTRIBUTION_UNIVERSAL_GROUP,
+}
+
+
+def _creation_error(error, name):
+    """A readable message for an LdbError raised while creating an account."""
+    code = error.args[0]
+    if code == ldb.ERR_ENTRY_ALREADY_EXISTS:
+        return 'An account named "%s" already exists.' % name
+    if code == ldb.ERR_CONSTRAINT_VIOLATION:
+        return ("The password does not meet the domain's password policy "
+                "(minimum length, complexity or history).")
+    if code == ldb.ERR_INSUFFICIENT_ACCESS_RIGHTS:
+        return "You do not have permission to create accounts there."
+    return "Samba refused to create the account: %s" % error.args[-1]
+
+
 def guid_base_dn(objectguid_hex):
     """Base DN that finds an object by the id the app uses for it.
 
@@ -382,6 +406,57 @@ class SambaServer(object):
             })
         cuentas.sort(key=lambda cuenta: cuenta["name"].lower())
         return cuentas[:limite]
+
+    def listar_contenedores(self):
+        """DNs of the containers where accounts can be created: the default
+        users container first, then every OU except Domain Controllers."""
+        cx = self.conectar()
+        dominio = cx.get_default_basedn()
+        usuarios = str(cx.get_wellknown_dn(dominio, dsdb.DS_GUID_USERS_CONTAINER))
+        ous = cx.search(dominio, scope=ldb.SCOPE_SUBTREE,
+                        expression="(objectClass=organizationalUnit)", attrs=[])
+        controladores = str(cx.get_wellknown_dn(dominio, dsdb.DS_GUID_DOMAIN_CONTROLLERS_CONTAINER)).lower()
+        otros = sorted((str(ou.dn) for ou in ous if str(ou.dn).lower() != controladores), key=str.lower)
+        return [usuarios] + otros
+
+    def _relativo_al_dominio(self, dn):
+        """"OU=Sales,DC=example,DC=com" -> "OU=Sales", as newuser/newgroup expect."""
+        sufijo = "," + self.get_domain()
+        if not dn.lower().endswith(sufijo.lower()):
+            raise SambaError("%s is not in this domain." % dn)
+        return dn[:-len(sufijo)]
+
+    def crear_usuario(self, username, password, container, given_name="", surname="",
+                      description="", must_change_password=True, enabled=True):
+        """Create a user account in the container (a DN from listar_contenedores).
+        Raises SambaError with a readable message if Samba refuses."""
+        cx = self.conectar()
+        try:
+            cx.newuser(username, password,
+                       force_password_change_at_next_login_req=must_change_password,
+                       userou=self._relativo_al_dominio(container),
+                       givenname=given_name or None, surname=surname or None,
+                       description=description or None)
+            if not enabled:
+                cx.disable_account("(sAMAccountName=%s)" % ldb.binary_encode(username))
+        except ldb.LdbError as error:
+            raise SambaError(_creation_error(error, username))
+
+    def crear_grupo(self, name, container, scope="global", group_type="security", description=""):
+        """Create a group in the container and return its id (as used in the
+        group edit page). scope is global, domain_local or universal;
+        group_type is security or distribution."""
+        cx = self.conectar()
+        try:
+            cx.newgroup(name, groupou=self._relativo_al_dominio(container),
+                        grouptype=GROUP_TYPES[(group_type, scope)],
+                        description=description or None)
+        except ldb.LdbError as error:
+            raise SambaError(_creation_error(error, name))
+        creado = cx.search(self.get_domain(), scope=ldb.SCOPE_SUBTREE,
+                           expression="(sAMAccountName=%s)" % ldb.binary_encode(name),
+                           attrs=["objectGUID"])
+        return uuid.UUID(bytes=creado[0].get("objectGUID", idx=0)).hex
 
     def get_account_flags(self,objectg):
         # Dado el objectguid de un objeto, voy y busco sus UserAccountFlags,

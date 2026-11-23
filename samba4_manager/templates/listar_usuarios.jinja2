@@ -8,6 +8,9 @@
 {% endblock %}
 {% block sidebar_users %}active{% endblock %}
 {% block content %}
+          {% for message in saved %}
+          <div class="alert alert-success" role="alert">{{ message }}</div>
+          {% endfor %}
           <div class="card mb-3">
             <div class="card-header">
               <i class="fas fa-table"></i>

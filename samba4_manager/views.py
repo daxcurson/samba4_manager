@@ -4,7 +4,7 @@ from samba_server import SambaServer, SambaError
 from pyramid.view import view_config, forbidden_view_config
 from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
-from samba4_manager.model import UserForm, ComputerForm, GroupForm, ShareForm
+from samba4_manager.model import UserForm, ComputerForm, GroupForm, ShareForm, AddUserForm, AddGroupForm
 from samba4_config_writer import SambaConfigWriter
 #from asn1crypto._ffi import null
 
@@ -79,7 +79,8 @@ class SambaAdminViews(object):
         usuarios=self.samba_server.listar_usuarios()
         end=time.time()
         intervalo=end-start
-        return { 'usuarios': usuarios,'intervalo':intervalo }
+        return { 'usuarios': usuarios,'intervalo':intervalo,
+                 'saved':self.request.session.pop_flash() }
     @view_config(route_name='listar_grupos',renderer='templates/listar_grupos.jinja2',
                  permission="edit")
     def listar_grupos(self):
@@ -99,15 +100,14 @@ class SambaAdminViews(object):
         intervalo=end-start
         return { 'computadoras':computadoras,'intervalo':intervalo }
     def form_add_user(self,req_post):
-        usuario=User()
-        form=UserForm(req_post,usuario)
-        form.enabled.data=usuario.enabled
-        form.account_type.data=usuario.account_type
+        # Sin datos enviados (GET) el formulario usa sus valores por defecto.
+        form=AddUserForm(req_post or None)
+        form.container.choices=[(dn, dn) for dn in self.samba_server.listar_contenedores()]
         return form
     def form_add_group(self,req_post):
-        grupo=Group()
-        form=GroupForm(req_post,usuario)
-        form.enabled.data=grupo.enabled
+        # Sin datos enviados (GET) el formulario usa sus valores por defecto.
+        form=AddGroupForm(req_post or None)
+        form.container.choices=[(dn, dn) for dn in self.samba_server.listar_contenedores()]
         return form
     def form_edit_user(self,req_post,usuario):
         # Cargo los valores en el formulario
@@ -136,24 +136,31 @@ class SambaAdminViews(object):
     @view_config(route_name='agregar_usuario',renderer='templates/agregar_usuario.jinja2',
                  permission="edit")
     def agregar_usuario_mostrar_form(self):
-        form=self.form_add_user(self.request.POST)
-        if self.request.method=='POST' and form.validate():
-            user=User()
-            user.samaccountname=form.samaccountname.data
-            user.dn=form.dn.data
-            # Aqui hay que grabar
-            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
-        return {'form':form}
+        """Show an empty form to add a user; it is sent to agregar_usuario_grabar_form."""
+        form=self.form_add_user(None)
+        return {'form':form, 'error':None}
     @view_config(route_name='agregar_usuario_grabar_form',renderer='templates/agregar_usuario.jinja2',
-                 permission="edit")
+                 permission="edit", require_csrf=True)
     def agregar_usuario_grabar_form(self):
-        usuario=()
+        """Create the user in Samba, or show the form again with what went wrong."""
         form=self.form_add_user(self.request.POST)
-        if self.request_method=='POST' and form.validate():
-            form.populate(usuario)
-            # Aca grabo el objeto en el samba
-            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
-        return {'form':form}
+        error=None
+        if self.request.method=='POST' and form.validate():
+            nombre=form.samaccountname.data.strip()
+            try:
+                self.samba_server.crear_usuario(
+                    nombre, form.password.data, form.container.data,
+                    given_name=(form.given_name.data or '').strip(),
+                    surname=(form.surname.data or '').strip(),
+                    description=(form.description.data or '').strip(),
+                    must_change_password=form.must_change_password.data,
+                    enabled=form.enabled.data)
+            except SambaError as e:
+                error=str(e)
+            else:
+                self.request.session.flash('The user "%s" was created.' % nombre)
+                raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_usuarios'))
+        return {'form':form, 'error':error}
     @view_config(route_name='editar_usuario_mostrar_form',renderer='templates/editar_usuario.jinja2',
                  permission="edit")
     def editar_usuario_mostrar_form(self):
@@ -199,25 +206,29 @@ class SambaAdminViews(object):
     @view_config(route_name='agregar_grupo',renderer='templates/agregar_grupo.jinja2',
                  permission="edit")
     def agregar_grupo_mostrar_form(self):
-        """Show an empty form to add a group"""
-        form=self.form_add_group(self.request.POST)
-        if self.request.method=='POST' and form.validate():
-            group=Group()
-            group.samaccountname=form.samaccountname.data
-            group.dn=form.dn.data
-            # Aqui hay que grabar
-            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
-        return {'form':form}
+        """Show an empty form to add a group; it is sent to agregar_grupo_grabar_form."""
+        form=self.form_add_group(None)
+        return {'form':form, 'error':None}
     @view_config(route_name='agregar_grupo_grabar_form',renderer='templates/agregar_grupo.jinja2',
-                 permission="edit")
+                 permission="edit", require_csrf=True)
     def agregar_grupo_grabar_form(self):
-        grupo=()
+        """Create the group in Samba and go to its edit page, to add members."""
         form=self.form_add_group(self.request.POST)
-        if self.request_method=='POST' and form.validate():
-            form.populate(grupo)
-            # Aca grabo el objeto en el samba
-            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
-        return {'form':form}
+        error=None
+        if self.request.method=='POST' and form.validate():
+            nombre=form.samaccountname.data.strip()
+            try:
+                objectguid=self.samba_server.crear_grupo(
+                    nombre, form.container.data,
+                    scope=form.scope.data, group_type=form.group_type.data,
+                    description=(form.description.data or '').strip())
+            except SambaError as e:
+                error=str(e)
+            else:
+                self.request.session.flash('The group "%s" was created. You can add members now.' % nombre)
+                raise pyramid.httpexceptions.HTTPFound(self.request.route_url(
+                    'editar_grupo_mostrar_form', objectguid=objectguid))
+        return {'form':form, 'error':error}
 
     @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2',
                  permission="edit", require_csrf=True)
