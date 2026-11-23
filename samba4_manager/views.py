@@ -41,7 +41,7 @@ class SambaAdminViews(object):
             password = request.params['inputPassword']
             # I'll need to load the SambaServer object with username and password!
             self.samba_server.set_authentication(login, password)
-            print("samba4_manager: attempting to authenticate with %s and %s" % (login,password))
+            print("samba4_manager: attempting to authenticate with %s" % login)
             cx=self.samba_server.authenticate(login, password)
             if(cx is not None):
                 print("samba4_manager: login, search for user was successful")

@@ -3,8 +3,8 @@ from pyramid.authorization import ACLHelper, Authenticated, Everyone
 from samba_server import SambaServer
 
 class SambaSecurityPolicy:
-    def __init__(self, secret):
-        self.helper = AuthTktCookieHelper(secret)
+    def __init__(self, secret, secure=False):
+        self.helper = AuthTktCookieHelper(secret, secure=secure, http_only=True)
         self.samba_server=SambaServer.getInstance()
 
     def identity(self, request):

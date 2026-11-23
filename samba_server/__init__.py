@@ -8,8 +8,6 @@ from samba import dsdb, dsdb_dns
 from samba.samdb import SamDB
 from samba.credentials import Credentials
 from samba4_manager.model import User
-from secureconfig.secureconfigparser import SecureConfigParser
-from secureconfig import SecureString
 
 class SambaServer(object):
     __instance = None
@@ -76,7 +74,7 @@ class SambaServer(object):
         return cx
     def authenticate(self,usuario,password):
         # Connect to samba and attempt to authenticate this user
-        print("SambaServer.authenticate: authenticating with %s and %s" % (usuario,password))
+        print("SambaServer.authenticate: authenticating with %s" % usuario)
         lp=param.LoadParm()
         badge=Credentials()
         badge.guess(lp)
