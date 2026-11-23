@@ -10,13 +10,44 @@ from samba.samdb import SamDB
 from samba.credentials import Credentials
 from samba.dcerpc import security
 from samba.ndr import ndr_unpack
-from samba4_manager.model import User
+from samba4_manager.model import User, Group
 
 log = logging.getLogger(__name__)
 
 # SID of the BUILTIN\Administrators group. Domain Admins and Enterprise Admins
 # are members of it, so it covers every kind of domain administrator.
 BUILTIN_ADMINISTRATORS_SID = security.SID_BUILTIN_ADMINISTRATORS
+
+
+class SambaError(Exception):
+    """An operation Samba refused, with a message that can be shown to the user."""
+
+
+def _text(value):
+    """Attribute values come back from ldb as bytes; return them as text."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return str(value)
+
+
+# Bits of the groupType attribute. Builtin groups such as Administrators
+# also have the domain local bit set; like Windows, show them as builtin.
+GROUP_TYPE_SECURITY = 0x80000000
+GROUP_SCOPES = [
+    (0x1, "Builtin local"),
+    (0x2, "Global"),
+    (0x4, "Domain local"),
+    (0x8, "Universal"),
+]
+
+
+def describe_group_type(group_type):
+    """Return (scope, type) for a groupType value, e.g. ("Global", "Security")."""
+    scope = next((name for bit, name in GROUP_SCOPES if group_type & bit), "")
+    kind = "Security" if group_type & GROUP_TYPE_SECURITY else "Distribution"
+    return scope, kind
 
 
 def guid_base_dn(objectguid_hex):
@@ -251,6 +282,72 @@ class SambaServer(object):
                 objeto.account_type="server_account"
             print(objeto.enabled)
         return objeto
+    def get_group_by_objectguid(self, objectg):
+        """Return the group with that id as a Group, or None if there is no
+        such object or it is not a group. Raises ValueError for invalid ids."""
+        cx = self.conectar()
+        result = cx.search(base=guid_base_dn(objectg), scope=ldb.SCOPE_BASE,
+                           attrs=["objectClass", "sAMAccountName", "description",
+                                  "groupType", "member"])
+        if len(result) != 1:
+            return None
+        entry = result[0]
+        if "group" not in [_text(c) for c in entry["objectClass"]]:
+            return None
+        group = Group(_text(entry.get("sAMAccountName", idx=0)), str(entry.dn))
+        group.objectguid = objectg
+        group.description = _text(entry.get("description", idx=0))
+        group.scope, group.group_type = describe_group_type(int(entry.get("groupType", idx=0) or 0))
+        if "member" in entry:
+            group.members = sorted(entry["member"].text, key=str.lower)
+        return group
+
+    def update_group(self, objectg, description, add_member_names=(), remove_member_dns=()):
+        """Change a group's description and members in a single LDAP modify,
+        so either all the changes are applied or none.
+
+        add_member_names are account names (sAMAccountName) of users, groups
+        or computers; remove_member_dns are DNs of current members. Raises
+        SambaError with a readable message if Samba refuses.
+        """
+        cx = self.conectar()
+        result = cx.search(base=guid_base_dn(objectg), scope=ldb.SCOPE_BASE,
+                           attrs=["description"])
+        if len(result) != 1:
+            raise SambaError("The group no longer exists.")
+        message = ldb.Message()
+        message.dn = result[0].dn
+        if description != _text(result[0].get("description", idx=0)):
+            # An empty list removes the description.
+            message["description"] = ldb.MessageElement(
+                [description] if description else [], ldb.FLAG_MOD_REPLACE, "description")
+        add_dns = []
+        for name in add_member_names:
+            found = cx.search(self.get_domain(), scope=ldb.SCOPE_SUBTREE,
+                              expression="(sAMAccountName=%s)" % ldb.binary_encode(name),
+                              attrs=[])
+            if len(found) != 1:
+                raise SambaError('There is no user, group or computer named "%s".' % name)
+            add_dns.append(str(found[0].dn))
+        if add_dns:
+            message["add_member"] = ldb.MessageElement(add_dns, ldb.FLAG_MOD_ADD, "member")
+        if remove_member_dns:
+            message["remove_member"] = ldb.MessageElement(
+                list(remove_member_dns), ldb.FLAG_MOD_DELETE, "member")
+        if len(message) == 0:
+            return
+        try:
+            cx.modify(message)
+        except ldb.LdbError as error:
+            code = error.args[0]
+            if code == ldb.ERR_ENTRY_ALREADY_EXISTS:
+                raise SambaError("That account is already a member of the group.")
+            if code == ldb.ERR_UNWILLING_TO_PERFORM and remove_member_dns:
+                raise SambaError("One of the accounts to remove is no longer a member of the group.")
+            if code == ldb.ERR_INSUFFICIENT_ACCESS_RIGHTS:
+                raise SambaError("You do not have permission to change this group.")
+            raise SambaError("Samba refused the change: %s" % error.args[-1])
+
     def get_account_flags(self,objectg):
         # Dado el objectguid de un objeto, voy y busco sus UserAccountFlags,
         # que pueden ser Disabled, Force logon, machine trust account, etc, etc, etc.

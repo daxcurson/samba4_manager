@@ -52,7 +52,6 @@ def main(global_config, **settings):
     config.add_route('editar_usuario_mostrar_form','/editar_usuario/{objectguid}')
     config.add_route('editar_usuario_grabar_form','/editar_usuario_grabar')
     config.add_route('editar_grupo_mostrar_form','/editar_grupo/{objectguid}')
-    config.add_route('editar_grupo_grabar_form','/editar_grupo_grabar')
     config.add_route('editar_computadora_mostrar_form','/editar_computadora/{objectguid}')
     config.add_route('editar_computadora_grabar_form','/editar_computadora_grabar')
     config.add_route('editar_share_mostrar_form','/editar_share/{objectguid}')

@@ -92,6 +92,34 @@ class FakeSambaServer(object):
         guid_base_dn(objectguid)  # rejects invalid ids, like the real search
         return [{'dn': 'CN=Administrator,CN=Users,DC=test,DC=lan', 'objectguid': 'bb' * 16}]
 
+    # One group, with two members, for the group edit page.
+    GROUP_ID = 'cc' * 16
+    group_updates = []
+    refuse_with = None
+
+    def get_group_by_objectguid(self, objectguid):
+        from samba_server import guid_base_dn
+        from samba4_manager.model import Group
+        guid_base_dn(objectguid)  # rejects invalid ids, like the real one
+        if objectguid != self.GROUP_ID:
+            return None
+        group = Group('staff', 'CN=staff,CN=Users,DC=test,DC=lan')
+        group.objectguid = objectguid
+        group.description = 'Staff <b>members</b>'
+        group.scope = 'Global'
+        group.group_type = 'Security'
+        group.members = ['CN=ana,CN=Users,DC=test,DC=lan', 'CN=pepe,CN=Users,DC=test,DC=lan']
+        return group
+
+    def update_group(self, objectguid, description, add_member_names=(), remove_member_dns=()):
+        from samba_server import SambaError
+        if FakeSambaServer.refuse_with:
+            raise SambaError(FakeSambaServer.refuse_with)
+        FakeSambaServer.group_updates.append({
+            'acting_as': self.username, 'objectguid': objectguid,
+            'description': description, 'add': list(add_member_names),
+            'remove': list(remove_member_dns)})
+
     def listar_usuarios(self):
         # Report which credentials the request used.
         return [{'user': 'acting-as-%s' % self.username,
@@ -252,6 +280,84 @@ class AdvancedTreeTests(AppTestCase):
         app = self.logged_in_app()
         app.get('/listar_subrama', {'id': 'not-a-guid'}, status=400)
         app.get('/listar_subrama', status=400)
+
+
+class GroupEditTests(AppTestCase):
+    URL = '/editar_grupo/' + FakeSambaServer.GROUP_ID
+
+    def setUp(self):
+        super(GroupEditTests, self).setUp()
+        FakeSambaServer.group_updates = []
+        FakeSambaServer.refuse_with = None
+        self.app = self.make_app()
+        self.login(self.app, 'admin', 'pw-admin')
+
+    def form(self):
+        return self.app.get(self.URL).forms['group-form']
+
+    def test_shows_the_group(self):
+        res = self.app.get(self.URL)
+        for text in ['CN=staff,CN=Users,DC=test,DC=lan', 'Global / Security',
+                     'CN=ana,CN=Users,DC=test,DC=lan', 'CN=pepe,CN=Users,DC=test,DC=lan']:
+            self.assertIn(text, res.text)
+        self.assertEqual(res.forms['group-form']['description'].value, 'Staff <b>members</b>')
+
+    def test_values_are_escaped(self):
+        res = self.app.get(self.URL)
+        self.assertNotIn('Staff <b>members</b>', res.text)
+        self.assertIn('Staff &lt;b&gt;members&lt;/b&gt;', res.text)
+
+    def test_save_changes(self):
+        form = self.form()
+        form['description'] = '  Office staff  '
+        form['add_member'] = ' jdoe '
+        form.get('remove_members', index=1).checked = True  # pepe
+        res = form.submit()
+        self.assertEqual(res.status_int, 302)
+        self.assertEqual(FakeSambaServer.group_updates, [{
+            'acting_as': 'admin', 'objectguid': FakeSambaServer.GROUP_ID,
+            'description': 'Office staff', 'add': ['jdoe'],
+            'remove': ['CN=pepe,CN=Users,DC=test,DC=lan']}])
+        self.assertIn('The group was saved.', res.follow().text)
+
+    def test_save_without_changes_adds_and_removes_nothing(self):
+        self.form().submit()
+        self.assertEqual(FakeSambaServer.group_updates[0]['add'], [])
+        self.assertEqual(FakeSambaServer.group_updates[0]['remove'], [])
+
+    def test_requires_csrf_token(self):
+        self.app.post(self.URL, {'description': 'x'}, status=400)
+        self.assertEqual(FakeSambaServer.group_updates, [])
+
+    def test_cannot_remove_an_account_that_is_not_listed(self):
+        form = self.form()
+        res = self.app.post(self.URL, {
+            'csrf_token': form['csrf_token'].value, 'description': 'x',
+            'remove_members': 'CN=Administrator,CN=Users,DC=test,DC=lan'})
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(FakeSambaServer.group_updates, [])
+
+    def test_shows_what_samba_refused(self):
+        FakeSambaServer.refuse_with = 'There is no user, group or computer named "nobody".'
+        form = self.form()
+        form['add_member'] = 'nobody'
+        res = form.submit()
+        self.assertEqual(res.status_int, 200)
+        self.assertIn('There is no user, group or computer named &#34;nobody&#34;.', res.text)
+
+    def test_unknown_group_and_invalid_id(self):
+        self.app.get('/editar_grupo/' + 'dd' * 16, status=404)
+        self.app.get('/editar_grupo/not-a-guid', status=400)
+
+
+class GroupTypeTests(unittest.TestCase):
+    def test_describe_group_type(self):
+        from samba_server import describe_group_type
+        # groupType values as Samba stores them (signed 32-bit integers).
+        self.assertEqual(describe_group_type(-2147483646), ('Global', 'Security'))
+        self.assertEqual(describe_group_type(-2147483644), ('Domain local', 'Security'))
+        self.assertEqual(describe_group_type(-2147483643), ('Builtin local', 'Security'))  # Administrators
+        self.assertEqual(describe_group_type(8), ('Universal', 'Distribution'))
 
 
 class GuidTests(unittest.TestCase):

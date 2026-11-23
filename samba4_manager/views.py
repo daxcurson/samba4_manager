@@ -1,6 +1,6 @@
 import time
 import pyramid.httpexceptions
-from samba_server import SambaServer
+from samba_server import SambaServer, SambaError
 from pyramid.view import view_config, forbidden_view_config
 from pyramid.security import (remember,forget,Allow,Everyone)
 from samba4_manager.model import User, Computer, Group
@@ -110,12 +110,6 @@ class SambaAdminViews(object):
         form.enabled.data=usuario.enabled
         form.account_type.data=usuario.account_type
         return form
-    def form_edit_group(self,req_post,grupo):
-        # Cargo los valores en el formulario
-        form=GroupForm(req_post,grupo)
-        form.enabled.data=grupo.enabled
-        form.account_type.data=grupo.account_type
-        return form
     def form_edit_computer(self,req_post,computadora):
         # Cargo los valores en el formulario
         form=ComputerForm(req_post,computadora)
@@ -192,26 +186,39 @@ class SambaAdminViews(object):
             raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_computadoras'))
         return {'form':form}
     @view_config(route_name='editar_grupo_mostrar_form',renderer='templates/editar_grupo.jinja2',
-                 permission="edit")
+                 permission="edit", require_csrf=True)
     def editar_grupo_mostrar_form(self):
+        """Show a group and save changes to its description and members."""
         objectguid=self.request.matchdict['objectguid']
-        grupo=self.samba_server.get_object_by_objectguid(objectguid)
-        form=self.form_edit_group(self.request.POST,grupo)
+        try:
+            grupo=self.samba_server.get_group_by_objectguid(objectguid)
+        except ValueError:
+            raise pyramid.httpexceptions.HTTPBadRequest("Invalid id")
+        if grupo is None:
+            raise pyramid.httpexceptions.HTTPNotFound()
+        if self.request.method=='POST':
+            form=GroupForm(self.request.POST)
+        else:
+            form=GroupForm(description=grupo.description)
+        form.remove_members.choices=[(dn, dn) for dn in grupo.members]
+        error=None
         if self.request.method=='POST' and form.validate():
-            form.populate_obj(grupo)
-            # Aca grabo el objeto en el samba
-            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
-        return {'form':form}
-    @view_config(route_name='editar_grupo_grabar_form',renderer='templates/editar_grupo.jinja2',
-                 permission="edit")
-    def editar_grupo_grabar_form(self):
-        grupo=()
-        form=self.form_edit_group(self.request.POST, grupo)
-        if self.request_method=='POST' and form.validate():
-            form.populate(grupo)
-            # Aca grabo el objeto en el samba
-            raise pyramid.httpexceptions.HTTPFound(self.request.route_url('listar_grupos'))
-        return {'form':form}
+            add_member=(form.add_member.data or '').strip()
+            try:
+                self.samba_server.update_group(
+                    objectguid,
+                    description=(form.description.data or '').strip(),
+                    add_member_names=[add_member] if add_member else [],
+                    remove_member_dns=form.remove_members.data or [])
+            except SambaError as e:
+                error=str(e)
+            else:
+                self.request.session.flash('The group was saved.')
+                # Redirect, so that reloading the page does not submit the form again.
+                raise pyramid.httpexceptions.HTTPFound(self.request.route_url(
+                    'editar_grupo_mostrar_form', objectguid=objectguid))
+        return {'form':form, 'grupo':grupo, 'error':error,
+                'saved':self.request.session.pop_flash()}
     @view_config(route_name="editar_share_mostrar_form",renderer="templates/editar_share.jinja2",
                  permission="edit")
     def editar_share_mostrar_form(self):
