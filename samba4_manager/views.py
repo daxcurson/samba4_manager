@@ -110,6 +110,12 @@ class SambaAdminViews(object):
         form.enabled.data=usuario.enabled
         form.account_type.data=usuario.account_type
         return form
+    def form_edit_group(self,req_post,grupo):
+        # Cargo los valores en el formulario
+        form=GroupForm(req_post,grupo)
+        # Solo se pueden quitar los miembros actuales del grupo.
+        form.remove_members.choices=[(dn, dn) for dn in grupo.members]
+        return form
     def form_edit_computer(self,req_post,computadora):
         # Cargo los valores en el formulario
         form=ComputerForm(req_post,computadora)
@@ -196,11 +202,7 @@ class SambaAdminViews(object):
             raise pyramid.httpexceptions.HTTPBadRequest("Invalid id")
         if grupo is None:
             raise pyramid.httpexceptions.HTTPNotFound()
-        if self.request.method=='POST':
-            form=GroupForm(self.request.POST)
-        else:
-            form=GroupForm(description=grupo.description)
-        form.remove_members.choices=[(dn, dn) for dn in grupo.members]
+        form=self.form_edit_group(self.request.POST,grupo)
         error=None
         if self.request.method=='POST' and form.validate():
             add_member=(form.add_member.data or '').strip()

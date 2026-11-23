@@ -337,6 +337,12 @@ class GroupEditTests(AppTestCase):
         self.assertEqual(res.status_int, 200)
         self.assertEqual(FakeSambaServer.group_updates, [])
 
+    def test_missing_description_keeps_the_current_one(self):
+        # Fields absent from the POST fall back to the group's current values.
+        form = self.form()
+        self.app.post(self.URL, {'csrf_token': form['csrf_token'].value})
+        self.assertEqual(FakeSambaServer.group_updates[0]['description'], 'Staff <b>members</b>')
+
     def test_shows_what_samba_refused(self):
         FakeSambaServer.refuse_with = 'There is no user, group or computer named "nobody".'
         form = self.form()
