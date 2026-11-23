@@ -66,7 +66,9 @@ modelled on `Debian.yml`. The playbook tells you which file name it looked for.
    `localhost ansible_connection=local` as the host in `inventory.ini`.
 
 3. Open `https://<server_name>/samba4_manager/` and log in with a domain
-   administrator account.
+   administrator account. Until the PCs trust the internal CA (see
+   [Trusting the certificate](#trusting-the-certificate)), the browser warns
+   about the certificate.
 
 To **update** to a newer version, run the same command again. Set
 `samba4_manager_version` to a tag or commit to pin a release.
@@ -83,7 +85,9 @@ These are the ones you are most likely to change:
 | `samba4_manager_url_path` | `/samba4_manager` | URL path; use `/` to publish at the site root |
 | `samba4_manager_version` | `master` | Branch, tag or commit to deploy |
 | `samba4_manager_git_repo` | this repository on GitHub | Use your own fork or mirror |
-| `samba4_manager_tls_cert`, `samba4_manager_tls_key` | empty (a self-signed certificate is generated) | Paths to your own certificate and key on the server |
+| `samba4_manager_tls_cert`, `samba4_manager_tls_key` | empty (use the internal CA) | Paths to your own certificate and key on the server |
+| `samba4_manager_ca_permitted_domain` | domain part of `samba4_manager_server_name` | The only domain (and its subdomains) the internal CA can sign for |
+| `samba4_manager_tls_selfsigned_days`, `samba4_manager_tls_renew_days` | `825`, `30` | Validity of the server certificate, and how many days before expiry the playbook renews it |
 | `samba4_manager_port` | `6543` | Local port the application listens on |
 | `samba4_manager_manage_firewall` | `true` | Open HTTP/HTTPS in firewalld if it is running |
 | `samba4_manager_selinux_allow_proxy` | `true` | Enable `httpd_can_network_connect` so Apache can reach the app |
@@ -97,9 +101,9 @@ These are the ones you are most likely to change:
   version the distribution built them for. The playbook finds that
   interpreter automatically. It also rebuilds the virtualenv when that
   interpreter changes, for example after a Fedora release upgrade.
-- **Self-signed certificate.** Browsers warn about it. For real use, point
-  `samba4_manager_tls_cert` / `samba4_manager_tls_key` at a certificate from
-  your CA or Let's Encrypt.
+- **HTTPS certificate.** Unless you give your own certificate, the playbook
+  creates an internal certificate authority (CA). That CA signs the server
+  certificate. See [Trusting the certificate](#trusting-the-certificate).
 - **Port 80.** If no other virtual host exists, the HTTP-to-HTTPS virtual
   host becomes Apache's default for port 80. It only redirects the
   application path, so other content on port 80 keeps working.
@@ -118,6 +122,72 @@ packages are installed. Then set `samba4_manager_python` to an interpreter
 that can `import samba`. If the bindings live outside that interpreter's
 default path (for example under `/usr/local/samba`), make them importable
 first. One way is a `.pth` file in that interpreter's `site-packages`.
+
+## Trusting the certificate
+
+On the first run the playbook creates an internal CA. Its certificate is at
+`/etc/pki/tls/certs/samba4_manager-ca.crt` on Fedora/RHEL, or
+`/etc/ssl/certs/samba4_manager-ca.crt` on Debian/Ubuntu. Import it once into
+the "Trusted Root Certification Authorities" of the PCs that use the app, and
+browsers stop warning.
+
+- **The CA is valid for 10 years.** The server certificate it signs is renewed
+  by the playbook, 30 days before it expires, so the PCs do not need to be
+  touched again. Run the playbook at least once in that window. Running it
+  for updates is enough.
+- **The CA is limited to one domain.** It can only sign names under
+  `samba4_manager_ca_permitted_domain`, through an X.509 name constraint. Even
+  if its private key leaked, it could not be used to impersonate other sites
+  to the PCs that trust it.
+- **Use the server name.** Open the app with `samba4_manager_server_name`,
+  not by IP address. The certificate is only valid for that name.
+
+### For every PC in the domain, with a GPO
+
+You need a domain-joined Windows PC with the Group Policy Management tools. On
+Windows 10/11 Pro or Enterprise, install them from Settings → Optional
+features → Add a feature → *RSAT: Group Policy Management Tools*. Log in as a
+domain administrator.
+
+1. Copy the CA certificate to that PC. In PowerShell (on Fedora; use the
+   Debian path above on Debian/Ubuntu):
+
+   ```
+   scp youruser@dc1.example.com:/etc/pki/tls/certs/samba4_manager-ca.crt .
+   ```
+
+2. Open **Group Policy Management** (`gpmc.msc`). Under *Forest → Domains*,
+   right-click your domain → *Create a GPO in this domain, and Link it here…*.
+   Name it, for example, "Trust Samba4 Manager CA".
+3. Right-click the new GPO → **Edit**. Go to *Computer Configuration →
+   Policies → Windows Settings → Security Settings → Public Key Policies →
+   Trusted Root Certification Authorities*. Right-click → **Import…** and
+   select `samba4_manager-ca.crt`.
+4. PCs apply it at the next reboot, or within about 90 minutes. To apply it
+   right away on a PC, run `gpupdate /force`. To check it, open `certlm.msc` →
+   *Trusted Root Certification Authorities → Certificates*, and look for
+   "Samba4 Manager CA".
+
+Edge and Chrome use the Windows certificate store. If Firefox still warns,
+set `security.enterprise_roots.enabled` to `true` in `about:config`, or
+through a Firefox enterprise policy.
+
+### On a single PC, by hand
+
+In a Command Prompt run as administrator:
+
+```
+certutil -addstore -f Root samba4_manager-ca.crt
+```
+
+### Starting over with a new CA
+
+Delete the CA certificate and key on the server (`samba4_manager-ca.crt`
+and `samba4_manager-ca.key`), then run the playbook. It creates a new CA and a
+new server certificate. Then replace the certificate in the GPO, or on each
+PC. If you change `samba4_manager_server_name` to a name outside the CA's
+domain, the playbook stops and says so, and leaves the current certificate in
+place.
 
 ## Troubleshooting
 

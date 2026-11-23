@@ -22,5 +22,7 @@ _s4m_apache_default_cert: /etc/pki/tls/certs/localhost.crt
 
 _s4m_tls_cert_default: /etc/pki/tls/certs/samba4_manager.crt
 _s4m_tls_key_default: /etc/pki/tls/private/samba4_manager.key
+_s4m_ca_cert_default: /etc/pki/tls/certs/samba4_manager-ca.crt
+_s4m_ca_key_default: /etc/pki/tls/private/samba4_manager-ca.key
 
 _s4m_nologin: /usr/sbin/nologin

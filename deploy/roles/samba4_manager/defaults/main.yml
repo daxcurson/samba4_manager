@@ -37,11 +37,24 @@ samba4_manager_url_path: /samba4_manager
 # Host name users type in the browser. Apache selects the virtual host by this name.
 samba4_manager_server_name: "{{ ansible_fqdn }}"
 
-# TLS certificate and key for Apache. Leave both empty to generate a
-# self-signed certificate (fine for testing; browsers will warn).
+# TLS certificate and key for Apache. Leave both empty to have the playbook
+# create an internal certificate authority (CA) and a server certificate
+# signed by it. Browsers trust it once the CA certificate is imported into
+# the PCs' trusted roots, e.g. with a GPO (see deploy/README.md).
 samba4_manager_tls_cert: ""
 samba4_manager_tls_key: ""
+
+# Internal CA, created on the first run.
+samba4_manager_ca_name: "Samba4 Manager CA ({{ samba4_manager_server_name }})"
+samba4_manager_ca_days: 3650
+# The CA may only sign names in this domain and its subdomains. Defaults to
+# the domain part of samba4_manager_server_name.
+samba4_manager_ca_permitted_domain: "{{ samba4_manager_server_name.split('.', 1)[-1] }}"
+
+# Validity of the server certificate signed by the internal CA, and how many
+# days before it expires the playbook renews it.
 samba4_manager_tls_selfsigned_days: 825
+samba4_manager_tls_renew_days: 30
 
 # Redirect http://<server_name><url_path> to HTTPS.
 samba4_manager_http_redirect: true

@@ -1,33 +1,6 @@
 ---
-- name: Generate a self-signed TLS certificate
-  ansible.builtin.command:
-    argv:
-      - openssl
-      - req
-      - -x509
-      - -newkey
-      - rsa:3072
-      - -nodes
-      - -days
-      - "{{ samba4_manager_tls_selfsigned_days }}"
-      - -subj
-      - "/CN={{ samba4_manager_server_name }}"
-      - -addext
-      - "subjectAltName=DNS:{{ samba4_manager_server_name }}"
-      - -keyout
-      - "{{ _s4m_tls_key }}"
-      - -out
-      - "{{ _s4m_tls_cert }}"
-    creates: "{{ _s4m_tls_cert }}"
-  when: not samba4_manager_tls_cert
-  notify: Reload Apache
-
-- name: Restrict access to the self-signed key
-  ansible.builtin.file:
-    path: "{{ _s4m_tls_key }}"
-    owner: root
-    group: root
-    mode: "0600"
+- name: Certificate signed by the internal CA
+  ansible.builtin.import_tasks: tls_ca.yml
   when: not samba4_manager_tls_cert
 
 - name: Enable the Apache modules the proxy needs

@@ -1,0 +1,128 @@
+---
+# Internal certificate authority for the HTTPS certificate.
+#
+# The CA certificate is created once and imported into the trusted roots of
+# the PCs that use the app (for example with a GPO). It signs the server
+# certificate, which this file renews by itself when it is close to expiry or
+# when samba4_manager_server_name changes, without touching the PCs again.
+#
+# The CA can only sign names under samba4_manager_ca_permitted_domain (an
+# X.509 name constraint), so even if its key leaked it could not be used to
+# impersonate other sites to the PCs that trust it.
+
+- name: Create the internal certificate authority (first run only)
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:3072
+      - -nodes
+      - -days
+      - "{{ samba4_manager_ca_days }}"
+      - -subj
+      - "/CN={{ samba4_manager_ca_name }}"
+      - -addext
+      - "basicConstraints=critical,CA:TRUE,pathlen:0"
+      - -addext
+      - "keyUsage=critical,keyCertSign,cRLSign"
+      - -addext
+      - "nameConstraints=critical,permitted;DNS:{{ samba4_manager_ca_permitted_domain }}"
+      - -keyout
+      - "{{ _s4m_ca_key }}"
+      - -out
+      - "{{ _s4m_ca_cert }}"
+    creates: "{{ _s4m_ca_cert }}"
+  register: _s4m_ca_created
+
+- name: Protect the CA private key
+  ansible.builtin.file:
+    path: "{{ _s4m_ca_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Make the CA certificate readable, so it can be copied to the PCs
+  ansible.builtin.file:
+    path: "{{ _s4m_ca_cert }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Valid means: signed by our CA, not expiring within
+# samba4_manager_tls_renew_days, and issued for samba4_manager_server_name.
+- name: Check the server certificate
+  ansible.builtin.shell: |
+    openssl verify -CAfile '{{ _s4m_ca_cert }}' '{{ _s4m_tls_cert }}' >/dev/null 2>&1 &&
+    openssl x509 -in '{{ _s4m_tls_cert }}' -noout -checkend {{ (samba4_manager_tls_renew_days | int) * 86400 }} >/dev/null &&
+    openssl x509 -in '{{ _s4m_tls_cert }}' -noout -checkhost '{{ samba4_manager_server_name }}' | grep -q 'does match'
+  args:
+    executable: /bin/sh
+  register: _s4m_cert_check
+  changed_when: false
+  failed_when: false
+
+# "install" copies the files, so on SELinux systems they get the label of the
+# destination directory instead of the temporary one.
+- name: Issue the server certificate from the internal CA
+  ansible.builtin.shell: |
+    set -e
+    umask 077
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    cat > "$tmp/ext" <<'EOF'
+    basicConstraints=critical,CA:FALSE
+    keyUsage=critical,digitalSignature,keyEncipherment
+    extendedKeyUsage=serverAuth
+    subjectAltName=DNS:{{ samba4_manager_server_name }}
+    EOF
+    openssl req -new -newkey rsa:3072 -nodes \
+      -subj '/CN={{ samba4_manager_server_name }}' \
+      -keyout "$tmp/key" -out "$tmp/csr" 2>/dev/null
+    openssl x509 -req -in "$tmp/csr" \
+      -CA '{{ _s4m_ca_cert }}' -CAkey '{{ _s4m_ca_key }}' \
+      -set_serial "0x$(openssl rand -hex 16)" \
+      -days {{ samba4_manager_tls_selfsigned_days }} \
+      -extfile "$tmp/ext" -out "$tmp/crt" 2>/dev/null
+    # Never replace the current certificate with one the CA cannot vouch for.
+    if ! openssl verify -CAfile '{{ _s4m_ca_cert }}' "$tmp/crt" >/dev/null 2>&1; then
+      echo CA_CANNOT_SIGN
+      exit 0
+    fi
+    install -o root -g root -m 0600 "$tmp/key" '{{ _s4m_tls_key }}'
+    install -o root -g root -m 0644 "$tmp/crt" '{{ _s4m_tls_cert }}'
+  args:
+    executable: /bin/bash
+  register: _s4m_cert_issue
+  changed_when: "'CA_CANNOT_SIGN' not in _s4m_cert_issue.stdout"
+  when: _s4m_cert_check.rc != 0
+  notify: Reload Apache
+
+- name: Verify the server certificate against the CA
+  ansible.builtin.command:
+    argv: [openssl, verify, -CAfile, "{{ _s4m_ca_cert }}", "{{ _s4m_tls_cert }}"]
+  register: _s4m_cert_verify
+  changed_when: false
+  failed_when: false
+
+- name: Stop if the CA cannot vouch for the server name
+  ansible.builtin.fail:
+    msg: >-
+      The internal CA can only sign names under the domain it was created for
+      (see "Name Constraints" in: openssl x509 -in {{ _s4m_ca_cert }} -noout -text),
+      and {{ samba4_manager_server_name }} is not one of them, so the current
+      certificate was left in place. To start over with a new CA, delete
+      {{ _s4m_ca_cert }} and {{ _s4m_ca_key }}, run the playbook again and import
+      the new CA certificate into the PCs (replacing the old one).
+  when: >-
+    _s4m_cert_verify.rc != 0 or
+    (_s4m_cert_issue is not skipped and 'CA_CANNOT_SIGN' in _s4m_cert_issue.stdout)
+
+- name: Remind where the CA certificate is
+  ansible.builtin.debug:
+    msg: >-
+      Created the internal CA. Import {{ _s4m_ca_cert }} into the
+      "Trusted Root Certification Authorities" of the PCs that will use
+      the app (see deploy/README.md, "Trusting the certificate").
+  when: _s4m_ca_created is changed
