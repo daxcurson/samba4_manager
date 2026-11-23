@@ -18,6 +18,9 @@ _s4m_apache_conf: /etc/httpd/conf.d/samba4_manager.conf
 _s4m_apache_log_dir: /var/log/httpd
 _s4m_apache_modules: []
 _s4m_apache_site_name: ""
+# Creates the certificate referenced by mod_ssl's ssl.conf on first start.
+_s4m_apache_init_unit: httpd-init.service
+_s4m_apache_default_cert: /etc/pki/tls/certs/localhost.crt
 
 _s4m_tls_cert_default: /etc/pki/tls/certs/samba4_manager.crt
 _s4m_tls_key_default: /etc/pki/tls/private/samba4_manager.key
