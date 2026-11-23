@@ -10,7 +10,7 @@ with open(os.path.join(here, 'CHANGES.txt')) as f:
 
 requires = [
     'plaster_pastedeploy',
-    'pyramid==2.0.2',
+    'pyramid==2.1',
     'pyramid_chameleon==0.3',
     'pyramid_jinja2==2.8',
     'waitress==2.1.2',
@@ -50,7 +50,7 @@ setup(
         'dev': dev_require,
         'testing': tests_require,
     },
-    python_requires='>=3.6',
+    python_requires='>=3.10',
     install_requires=requires,
     entry_points={
         'paste.app_factory': [

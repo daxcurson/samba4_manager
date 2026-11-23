@@ -55,6 +55,15 @@
   when: _s4m_apache_site_name | length > 0
   notify: Reload Apache
 
+# On Fedora/RHEL, mod_ssl's ssl.conf points at a certificate that the
+# httpd-init service only creates the first time Apache starts. Create it
+# now so that the configuration test below passes on a fresh install.
+- name: Create the default mod_ssl certificate
+  ansible.builtin.command:
+    cmd: "systemctl start {{ _s4m_apache_init_unit }}"
+    creates: "{{ _s4m_apache_default_cert }}"
+  when: _s4m_apache_init_unit | length > 0
+
 - name: Check the Apache configuration
   ansible.builtin.command:
     cmd: "{{ _s4m_apache_ctl }} -t"

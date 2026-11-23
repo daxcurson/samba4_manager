@@ -19,6 +19,8 @@ _s4m_apache_modules:
   - headers
   - ssl
 _s4m_apache_site_name: samba4_manager
+_s4m_apache_init_unit: ""
+_s4m_apache_default_cert: ""
 
 _s4m_tls_cert_default: /etc/ssl/certs/samba4_manager.crt
 _s4m_tls_key_default: /etc/ssl/private/samba4_manager.key

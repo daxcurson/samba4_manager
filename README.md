@@ -7,7 +7,7 @@ This tool is a web application that will provide user management for Samba. It i
 
 It will allow for creation, modification and deletion of users and groups, with the ultimate goal to replicate the functions of the "Active Directory Users and Groups".
 
-Python 3.6 or later is required.
+Python 3.10 or later is required.
 
 ## Motivation
 
