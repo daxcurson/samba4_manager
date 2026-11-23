@@ -348,6 +348,41 @@ class SambaServer(object):
                 raise SambaError("You do not have permission to change this group.")
             raise SambaError("Samba refused the change: %s" % error.args[-1])
 
+    def buscar_cuentas(self, texto, limite=20):
+        """Users, groups and computers whose account name, name or display name
+        starts with texto (all of them if texto is empty), sorted by account
+        name, at most limite. Each one is a dict with name (sAMAccountName),
+        display (displayName, may be empty), type (user, group or computer)
+        and dn."""
+        cx = self.conectar()
+        texto = texto.strip()
+        if texto:
+            patron = ldb.binary_encode(texto) + "*"
+            nombre = "(|(sAMAccountName=%s)(cn=%s)(displayName=%s))" % (patron, patron, patron)
+        else:
+            nombre = "(sAMAccountName=*)"
+        # Computers are also of objectClass user.
+        result = cx.search(self.get_domain(), scope=ldb.SCOPE_SUBTREE,
+                           expression="(&(|(objectClass=user)(objectClass=group))%s)" % nombre,
+                           attrs=["sAMAccountName", "displayName", "objectClass"])
+        cuentas = []
+        for entry in result:
+            clases = [_text(c) for c in entry["objectClass"]]
+            if "computer" in clases:
+                tipo = "computer"
+            elif "group" in clases:
+                tipo = "group"
+            else:
+                tipo = "user"
+            cuentas.append({
+                "name": _text(entry.get("sAMAccountName", idx=0)),
+                "display": _text(entry.get("displayName", idx=0)),
+                "type": tipo,
+                "dn": str(entry.dn),
+            })
+        cuentas.sort(key=lambda cuenta: cuenta["name"].lower())
+        return cuentas[:limite]
+
     def get_account_flags(self,objectg):
         # Dado el objectguid de un objeto, voy y busco sus UserAccountFlags,
         # que pueden ser Disabled, Force logon, machine trust account, etc, etc, etc.
