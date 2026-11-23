@@ -221,6 +221,12 @@ class SambaAdminViews(object):
                     'editar_grupo_mostrar_form', objectguid=objectguid))
         return {'form':form, 'grupo':grupo, 'error':error,
                 'saved':self.request.session.pop_flash()}
+    @view_config(route_name='buscar_cuentas',renderer='json',
+                 permission="edit")
+    def buscar_cuentas(self):
+        """Accounts whose name starts with ?q=, for the "Add member" suggestions."""
+        texto=self.request.params.get('q','')[:256]
+        return self.samba_server.buscar_cuentas(texto)
     @view_config(route_name="editar_share_mostrar_form",renderer="templates/editar_share.jinja2",
                  permission="edit")
     def editar_share_mostrar_form(self):
