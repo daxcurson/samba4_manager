@@ -13,7 +13,7 @@ requires = [
     'pyramid==2.1',
     'pyramid_chameleon==0.3',
     'pyramid_jinja2==2.8',
-    'waitress==2.1.2',
+    'waitress==3.0.2',
     'WTForms==2.3.3',
     'reconfigure==0.1.82'
 ]
