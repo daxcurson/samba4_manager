@@ -27,6 +27,8 @@
     _s4m_prefix: "{{ samba4_manager_url_path | regex_replace('/+$', '') }}"
     _s4m_tls_cert: "{{ samba4_manager_tls_cert or _s4m_tls_cert_default }}"
     _s4m_tls_key: "{{ samba4_manager_tls_key or _s4m_tls_key_default }}"
+    _s4m_ca_cert: "{{ _s4m_ca_cert_default }}"
+    _s4m_ca_key: "{{ _s4m_ca_key_default }}"
 
 - name: Check the URL path
   ansible.builtin.assert:
