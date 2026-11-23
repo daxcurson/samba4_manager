@@ -120,6 +120,16 @@ class FakeSambaServer(object):
             'description': description, 'add': list(add_member_names),
             'remove': list(remove_member_dns)})
 
+    searches = []
+
+    def buscar_cuentas(self, texto, limite=20):
+        FakeSambaServer.searches.append(texto)
+        accounts = [
+            {'name': 'pepe', 'display': 'Pepe Perez', 'type': 'user', 'dn': 'CN=pepe,CN=Users,DC=test,DC=lan'},
+            {'name': 'perfiles', 'display': '', 'type': 'group', 'dn': 'CN=perfiles,CN=Users,DC=test,DC=lan'},
+        ]
+        return [a for a in accounts if a['name'].startswith(texto.strip())][:limite]
+
     def listar_usuarios(self):
         # Report which credentials the request used.
         return [{'user': 'acting-as-%s' % self.username,
@@ -354,6 +364,42 @@ class GroupEditTests(AppTestCase):
     def test_unknown_group_and_invalid_id(self):
         self.app.get('/editar_grupo/' + 'dd' * 16, status=404)
         self.app.get('/editar_grupo/not-a-guid', status=400)
+
+
+class AccountSearchTests(AppTestCase):
+    """/buscar_cuentas feeds the suggestions of "Add member" in the group page."""
+
+    def setUp(self):
+        super(AccountSearchTests, self).setUp()
+        FakeSambaServer.searches = []
+
+    def test_returns_matching_accounts(self):
+        app = self.make_app()
+        self.login(app, 'admin', 'pw-admin')
+        res = app.get('/buscar_cuentas', {'q': 'pep'})
+        self.assertEqual(res.json, [{'name': 'pepe', 'display': 'Pepe Perez', 'type': 'user',
+                                     'dn': 'CN=pepe,CN=Users,DC=test,DC=lan'}])
+        self.assertEqual(app.get('/buscar_cuentas').json[1]['type'], 'group')
+        self.assertEqual(FakeSambaServer.searches, ['pep', ''])
+
+    def test_long_queries_are_cut(self):
+        app = self.make_app()
+        self.login(app, 'admin', 'pw-admin')
+        app.get('/buscar_cuentas', {'q': 'x' * 1000})
+        self.assertEqual(FakeSambaServer.searches, ['x' * 256])
+
+    def test_requires_login(self):
+        res = self.make_app().get('/buscar_cuentas', {'q': 'pep'})
+        self.assertIn(b'inputPassword', res.body)  # the login page, not accounts
+        self.assertEqual(FakeSambaServer.searches, [])
+
+    def test_group_page_offers_suggestions(self):
+        app = self.make_app()
+        self.login(app, 'admin', 'pw-admin')
+        res = app.get('/editar_grupo/' + FakeSambaServer.GROUP_ID)
+        self.assertIn('list="account-suggestions"', res.text)
+        self.assertIn('<datalist id="account-suggestions">', res.text)
+        self.assertIn('"/buscar_cuentas"', res.text)
 
 
 class GroupTypeTests(unittest.TestCase):

@@ -63,7 +63,8 @@
 <div class="form-group row">
 	{{ form.add_member.label(class="col-sm-2 col-form-label") }}
 	<div class="col-sm-10">
-		{{ form.add_member(class="form-control" + (" is-invalid" if form.add_member.errors else ""), placeholder="e.g. jdoe") }}
+		{{ form.add_member(class="form-control" + (" is-invalid" if form.add_member.errors else ""), placeholder="Type to search, e.g. jdoe", list="account-suggestions", autocomplete="off") }}
+		<datalist id="account-suggestions"></datalist>
 		{% for e in form.add_member.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
 		<small class="form-text text-muted">{{ form.add_member.description }}</small>
 	</div>
@@ -75,4 +76,44 @@
 	</div>
 </div>
 </form>
+<script>
+// Suggest accounts in "Add member" while typing: ask the server for the
+// accounts whose name starts with the text, and offer them in the datalist.
+(function () {
+	var input = document.getElementById('add_member');
+	var list = document.getElementById('account-suggestions');
+	var url = {{ request.route_path('buscar_cuentas')|tojson }};
+	// Accounts that cannot be added: the current members and the group itself.
+	var excluded = {};
+	excluded[{{ grupo.dn|tojson }}.toLowerCase()] = true;
+	document.querySelectorAll('input[name="remove_members"]').forEach(function (box) {
+		excluded[box.value.toLowerCase()] = true;
+	});
+	var timer = null, lastQuery = null;
+	function load() {
+		var query = input.value.trim();
+		if (query === lastQuery) return;
+		lastQuery = query;
+		fetch(url + '?q=' + encodeURIComponent(query), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+			.then(function (response) { return response.ok ? response.json() : []; })
+			.then(function (accounts) {
+				if (query !== lastQuery) return;  // a newer search is on its way
+				list.innerHTML = '';
+				accounts.forEach(function (account) {
+					if (excluded[account.dn.toLowerCase()]) return;
+					var option = document.createElement('option');
+					option.value = account.name;
+					option.label = (account.display ? account.display + ' - ' : '') + account.type;
+					list.appendChild(option);
+				});
+			})
+			.catch(function () { /* keep typing by hand */ });
+	}
+	input.addEventListener('input', function () {
+		clearTimeout(timer);
+		timer = setTimeout(load, 250);
+	});
+	input.addEventListener('focus', load);
+})();
+</script>
 {% endblock %}
