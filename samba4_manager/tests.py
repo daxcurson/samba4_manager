@@ -121,6 +121,32 @@ class FakeSambaServer(object):
             'remove': list(remove_member_dns)})
 
     searches = []
+    created = []
+    CONTAINERS = ['CN=Users,DC=test,DC=lan', 'OU=Sales,DC=test,DC=lan']
+    NEW_GROUP_ID = 'ee' * 16
+
+    def listar_contenedores(self):
+        return list(self.CONTAINERS)
+
+    def listar_grupos(self):
+        return []
+
+    def crear_usuario(self, username, password, container, given_name='', surname='',
+                      description='', must_change_password=True, enabled=True):
+        from samba_server import SambaError
+        if FakeSambaServer.refuse_with:
+            raise SambaError(FakeSambaServer.refuse_with)
+        FakeSambaServer.created.append({
+            'kind': 'user', 'acting_as': self.username, 'name': username, 'password': password,
+            'container': container, 'given_name': given_name, 'surname': surname,
+            'description': description, 'must_change_password': must_change_password,
+            'enabled': enabled})
+
+    def crear_grupo(self, name, container, scope='global', group_type='security', description=''):
+        FakeSambaServer.created.append({
+            'kind': 'group', 'acting_as': self.username, 'name': name, 'container': container,
+            'scope': scope, 'group_type': group_type, 'description': description})
+        return self.NEW_GROUP_ID
 
     def buscar_cuentas(self, texto, limite=20):
         FakeSambaServer.searches.append(texto)
@@ -400,6 +426,120 @@ class AccountSearchTests(AppTestCase):
         self.assertIn('list="account-suggestions"', res.text)
         self.assertIn('<datalist id="account-suggestions">', res.text)
         self.assertIn('"/buscar_cuentas"', res.text)
+
+
+class AddAccountTestCase(AppTestCase):
+    def setUp(self):
+        super(AddAccountTestCase, self).setUp()
+        FakeSambaServer.created = []
+        FakeSambaServer.refuse_with = None
+        self.app = self.make_app()
+        self.login(self.app, 'admin', 'pw-admin')
+
+
+class AddUserTests(AddAccountTestCase):
+    def user_form(self):
+        form = self.app.get('/agregar_usuario').forms['user-form']
+        form['samaccountname'] = ' jdoe '
+        form['given_name'] = 'Juan'
+        form['surname'] = 'Doe'
+        form['password'] = 'Secret!123'
+        form['confirm_password'] = 'Secret!123'
+        return form
+
+    def test_users_list_links_to_the_form(self):
+        res = self.app.get('/')
+        form = [f for f in res.forms.values() if f.action == '/agregar_usuario'][0]
+        self.assertEqual(form.method, 'GET')
+        self.assertEqual(form.submit().status_int, 200)
+
+    def test_form_defaults(self):
+        form = self.app.get('/agregar_usuario').forms['user-form']
+        self.assertEqual(form.action, '/agregar_usuario_grabar')
+        self.assertEqual(form['container'].options[0][0], 'CN=Users,DC=test,DC=lan')
+        self.assertTrue(form['must_change_password'].checked)
+        self.assertTrue(form['enabled'].checked)
+
+    def test_creates_the_user(self):
+        form = self.user_form()
+        form['container'] = 'OU=Sales,DC=test,DC=lan'
+        res = form.submit()
+        self.assertEqual(res.status_int, 302)
+        self.assertEqual(FakeSambaServer.created, [{
+            'kind': 'user', 'acting_as': 'admin', 'name': 'jdoe', 'password': 'Secret!123',
+            'container': 'OU=Sales,DC=test,DC=lan', 'given_name': 'Juan', 'surname': 'Doe',
+            'description': '', 'must_change_password': True, 'enabled': True}])
+        self.assertIn('The user &#34;jdoe&#34; was created.', res.follow().text)
+
+    def test_unchecked_options(self):
+        form = self.user_form()
+        form['must_change_password'] = False
+        form['enabled'] = False
+        form.submit()
+        self.assertFalse(FakeSambaServer.created[0]['must_change_password'])
+        self.assertFalse(FakeSambaServer.created[0]['enabled'])
+
+    def test_passwords_must_match(self):
+        form = self.user_form()
+        form['confirm_password'] = 'other'
+        res = form.submit()
+        self.assertIn('The passwords do not match.', res.text)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_invalid_account_name(self):
+        form = self.user_form()
+        form['samaccountname'] = 'j/doe'
+        res = form.submit()
+        self.assertIn('It cannot contain any of these characters', res.text)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_container_must_be_one_of_the_list(self):
+        form = self.user_form()
+        fields = dict(form.submit_fields())
+        fields['container'] = 'OU=Domain Controllers,DC=test,DC=lan'
+        res = self.app.post('/agregar_usuario_grabar', fields)
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_requires_csrf_token(self):
+        self.app.post('/agregar_usuario_grabar', {'samaccountname': 'jdoe', 'password': 'x',
+                                                  'confirm_password': 'x'}, status=400)
+        self.assertEqual(FakeSambaServer.created, [])
+
+    def test_shows_what_samba_refused_without_echoing_the_password(self):
+        FakeSambaServer.refuse_with = "The password does not meet the domain's password policy."
+        res = self.user_form().submit()
+        self.assertEqual(res.status_int, 200)
+        self.assertIn('password policy', res.text)
+        self.assertNotIn('Secret!123', res.text)
+
+
+class AddGroupTests(AddAccountTestCase):
+    def test_groups_list_links_to_the_form(self):
+        res = self.app.get('/grupos')
+        form = [f for f in res.forms.values() if f.action == '/agregar_grupo'][0]
+        self.assertIn('type="submit"', res.text.split('/agregar_grupo')[1][:200])
+        self.assertEqual(form.submit().status_int, 200)
+
+    def test_creates_the_group_and_opens_it(self):
+        form = self.app.get('/agregar_grupo').forms['group-form']
+        self.assertEqual(form['scope'].value, 'global')
+        self.assertEqual(form['group_type'].value, 'security')
+        form['samaccountname'] = 'Sales team'
+        form['description'] = 'Everyone in sales'
+        form['scope'] = 'universal'
+        form['group_type'] = 'distribution'
+        res = form.submit()
+        self.assertEqual(res.status_int, 302)
+        self.assertTrue(res.location.endswith('/editar_grupo/' + FakeSambaServer.NEW_GROUP_ID))
+        self.assertEqual(FakeSambaServer.created, [{
+            'kind': 'group', 'acting_as': 'admin', 'name': 'Sales team',
+            'container': 'CN=Users,DC=test,DC=lan', 'scope': 'universal',
+            'group_type': 'distribution', 'description': 'Everyone in sales'}])
+
+    def test_requires_csrf_token(self):
+        self.app.post('/agregar_grupo_grabar', {'samaccountname': 'x'}, status=400)
+        self.assertEqual(FakeSambaServer.created, [])
 
 
 class GroupTypeTests(unittest.TestCase):

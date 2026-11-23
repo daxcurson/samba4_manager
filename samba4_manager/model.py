@@ -1,4 +1,4 @@
-from wtforms import Form, BooleanField, StringField, RadioField, SelectMultipleField, validators, widgets
+from wtforms import Form, BooleanField, StringField, PasswordField, RadioField, SelectField, SelectMultipleField, validators, widgets
 
 class UserForm(Form):
     samaccountname     = StringField('SamAccountName', [validators.Length(min=4, max=25)])
@@ -19,6 +19,32 @@ class ComputerForm(Form):
         ("server_account","Server Account"), 
         ("normal_account","Normal Account")
         ])
+# Characters that AD does not allow in an account name (sAMAccountName).
+ACCOUNT_NAME = validators.Regexp(r'^[^"/\\\[\]:;|=,+*?<>@]+$',
+                                 message='It cannot contain any of these characters: " / \\ [ ] : ; | = , + * ? < > @')
+
+class AddUserForm(Form):
+    samaccountname = StringField('Account name', [validators.InputRequired(), validators.Length(max=20), ACCOUNT_NAME],
+                                 description='Used to log in, e.g. jdoe. Up to 20 characters.')
+    given_name = StringField('First name', [validators.Optional(), validators.Length(max=64)])
+    surname = StringField('Last name', [validators.Optional(), validators.Length(max=64)])
+    description = StringField('Description', [validators.Optional(), validators.Length(max=1024)])
+    password = PasswordField('Password', [validators.InputRequired()])
+    confirm_password = PasswordField('Confirm password', [validators.EqualTo('password', message='The passwords do not match.')])
+    must_change_password = BooleanField('User must change password at next logon', default=True)
+    enabled = BooleanField('Account enabled', default=True)
+    # Choices are the containers where accounts can be created, set by the view.
+    container = SelectField('Create in', choices=[])
+
+class AddGroupForm(Form):
+    samaccountname = StringField('Group name', [validators.InputRequired(), validators.Length(max=64), ACCOUNT_NAME])
+    description = StringField('Description', [validators.Optional(), validators.Length(max=1024)])
+    scope = RadioField('Scope', choices=[('global', 'Global'), ('domain_local', 'Domain local'), ('universal', 'Universal')],
+                       default='global')
+    group_type = RadioField('Type', choices=[('security', 'Security'), ('distribution', 'Distribution')],
+                            default='security')
+    container = SelectField('Create in', choices=[])
+
 class MultiCheckboxField(SelectMultipleField):
     """A multiple choice rendered as a list of checkboxes."""
     widget = widgets.ListWidget(prefix_label=False)

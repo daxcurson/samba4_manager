@@ -1,0 +1,54 @@
+{% extends "base.jinja2" %}
+{% block page_title %}Samba4 Manager - Add group{%endblock%}
+{% block breadcrumb_items %}
+	{{ super() }}
+    <li class="breadcrumb-item">
+        <a href="{{ request.route_path('listar_grupos') }}">Grupos</a>
+    </li>
+{% endblock %}
+{% block breadcrumb_active_item %}
+            <li class="breadcrumb-item active">Agregar Grupo</li>
+{% endblock %}
+{% block sidebar_groups %}active{% endblock %}
+{% macro field_row(field, placeholder="") %}
+<div class="form-group row">
+	{{ field.label(class="col-sm-2 col-form-label") }}
+	<div class="col-sm-10">
+		{{ field(class="form-control" + (" is-invalid" if field.errors else ""), placeholder=placeholder) }}
+		{% for e in field.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+	</div>
+</div>
+{% endmacro %}
+{% macro radio_row(field) %}
+<div class="form-group row">
+	<div class="col-sm-2">{{ field.label.text }}</div>
+	<div class="col-sm-10">
+		{% for option in field %}
+		<div class="form-check form-check-inline">
+			{{ option(class="form-check-input") }} {{ option.label(class="form-check-label") }}
+		</div>
+		{% endfor %}
+		{% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+	</div>
+</div>
+{% endmacro %}
+{% block content %}
+{% if error %}
+<div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+<form id="group-form" method="POST" action="{{ request.route_path('agregar_grupo_grabar_form') }}">
+<input type="hidden" name="csrf_token" value="{{ request.session.get_csrf_token() }}">
+{{ field_row(form.samaccountname, "e.g. Sales") }}
+{{ field_row(form.description) }}
+{{ field_row(form.container) }}
+{{ radio_row(form.scope) }}
+{{ radio_row(form.group_type) }}
+<div class="form-group row">
+	<div class="col-sm-10 offset-sm-2">
+		<button type="submit" class="btn btn-primary">Create group</button>
+		<a class="btn btn-secondary" href="{{ request.route_path('listar_grupos') }}">Cancel</a>
+		<small class="form-text text-muted">After creating it you can add members.</small>
+	</div>
+</div>
+</form>
+{% endblock %}
