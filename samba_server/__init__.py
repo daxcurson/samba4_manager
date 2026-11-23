@@ -419,6 +419,50 @@ class SambaServer(object):
         otros = sorted((str(ou.dn) for ou in ous if str(ou.dn).lower() != controladores), key=str.lower)
         return [usuarios] + otros
 
+    def listar_ous(self):
+        """Where an OU can be created: the domain itself and its OUs (except
+        Domain Controllers and anything below it), as (dn, name, depth) in
+        tree order, depth 0 being the domain."""
+        cx = self.conectar()
+        dominio = cx.get_default_basedn()
+        controladores = cx.get_wellknown_dn(dominio, dsdb.DS_GUID_DOMAIN_CONTROLLERS_CONTAINER)
+        ous = cx.search(dominio, scope=ldb.SCOPE_SUBTREE,
+                        expression="(objectClass=organizationalUnit)", attrs=[])
+        niveles_dominio = len(dominio)
+        arbol = []
+        for ou in ous:
+            if ou.dn == controladores or ou.dn.is_child_of(controladores):
+                continue
+            profundidad = len(ou.dn) - niveles_dominio
+            # Names from the top down, so that each OU sorts right after its parent.
+            camino = [ou.dn.get_component_value(i).lower() for i in reversed(range(profundidad))]
+            arbol.append((camino, str(ou.dn), ou.dn.get_component_value(0), profundidad))
+        arbol.sort()
+        return ([(str(dominio), str(dominio), 0)] +
+                [(dn, nombre, profundidad) for camino, dn, nombre, profundidad in arbol])
+
+    def crear_ou(self, name, parent, description=""):
+        """Create an organizational unit called name inside parent (the domain
+        or an OU) and return its DN. The name is escaped as needed, so it may
+        contain commas and other special characters."""
+        cx = self.conectar()
+        rdn = ldb.Dn(cx, "OU=placeholder")
+        rdn.set_component(0, "OU", name)
+        dn = ldb.Dn(cx, parent)
+        dn.add_child(rdn)
+        try:
+            cx.create_ou(str(dn), description=description or None)
+        except ldb.LdbError as error:
+            code = error.args[0]
+            if code == ldb.ERR_ENTRY_ALREADY_EXISTS:
+                raise SambaError('There is already an OU called "%s" there.' % name)
+            if code == ldb.ERR_NAMING_VIOLATION:
+                raise SambaError("An OU cannot be created there.")
+            if code == ldb.ERR_INSUFFICIENT_ACCESS_RIGHTS:
+                raise SambaError("You do not have permission to create an OU there.")
+            raise SambaError("Samba refused to create the OU: %s" % error.args[-1])
+        return str(dn)
+
     def _relativo_al_dominio(self, dn):
         """"OU=Sales,DC=example,DC=com" -> "OU=Sales", as newuser/newgroup expect."""
         sufijo = "," + self.get_domain()

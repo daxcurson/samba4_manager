@@ -120,6 +120,12 @@
             <span>Groups</span>
           </a>
         </li>
+        <li class="nav-item {% block sidebar_ous %}{% endblock %}">
+          <a class="nav-link" href="{{ request.route_path('agregar_ou') }}">
+            <i class="fas fa-fw fa-sitemap"></i>
+            <span>Org. Units</span>
+          </a>
+        </li>
         <li class="nav-item {% block sidebar_computers %}{% endblock %}">
           <a class="nav-link" href="{{ request.route_path('listar_computadoras') }}">
             <i class="fas fa-fw fa-desktop"></i>
