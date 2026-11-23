@@ -1,4 +1,5 @@
 # Loading...
+import logging
 import ldb
 import samba
 import uuid
@@ -7,38 +8,55 @@ from samba import param
 from samba import dsdb, dsdb_dns
 from samba.samdb import SamDB
 from samba.credentials import Credentials
+from samba.dcerpc import security
+from samba.ndr import ndr_unpack
 from samba4_manager.model import User
 
+log = logging.getLogger(__name__)
+
+# SID of the BUILTIN\Administrators group. Domain Admins and Enterprise Admins
+# are members of it, so it covers every kind of domain administrator.
+BUILTIN_ADMINISTRATORS_SID = security.SID_BUILTIN_ADMINISTRATORS
+
+
 class SambaServer(object):
-    __instance = None
-    @staticmethod 
-    def getInstance():
-        """ Static access method. """
-        if SambaServer.__instance == None:
-            SambaServer()
-        return SambaServer.__instance
-    def __init__(self):
-        """ Virtually private constructor. """
-        if SambaServer.__instance != None:
-            raise Exception("This class is a singleton!")
-        else:
-            SambaServer.__instance = self
-        # Read the configuration file and store its values in memory.
-        #config=SecureConfigParser.from_file("/etc/httpd/conf.d/key.txt")
-        #config.read("/etc/httpd/conf.d/secret.txt")
-        #self.username=SecureString(config.get('credentials','username'))
-        #self.password=SecureString(config.get('credentials','password'))
-        #self.domain=config.get('credentials','domain')
-        self.username=""
-        self.password=""
-        self.domain=""
-    def set_authentication(self,username,password):
-        self.username=username
-        self.password=password
-        #self.domain=domain
+    """Connection to the local Samba AD DC on behalf of one user.
+
+    Every operation runs with the credentials given to the constructor, so
+    Samba applies that user's permissions. Create one instance per request
+    (see ``request.samba_server``); never share one between users.
+    """
+    URL = 'ldap://localhost'
+
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.domain = ""
+
+    def __repr__(self):
+        # Never show the password, e.g. in tracebacks or debug output.
+        return '<SambaServer username=%r>' % self.username
+
+    @classmethod
+    def authenticate(cls, username, password):
+        """Check the credentials against Samba.
+
+        Returns a SambaServer for that user, or None if Samba rejects them.
+        """
+        server = cls(username, password)
+        try:
+            server.conectar()
+        except ldb.LdbError as error:
+            log.info("Login failed for %s: %s", username, error.args[-1])
+            return None
+        return server
+
     def get_domain(self):
         # Devuelve la string del dominio
+        if not self.domain:
+            self.conectar()
         return self.domain
+
     def search_root(self):
         # Da los hijos del nodo raiz, cuyo DN se puede pedir con get_domain.
         cx=self.conectar()
@@ -66,28 +84,24 @@ class SambaServer(object):
         lp=param.LoadParm()
         badge = Credentials()
         badge.guess(lp)
-        
-        badge.set_username(self.username)
+        # parse_string also accepts DOMAIN\user and user@realm.
+        badge.parse_string(self.username)
         badge.set_password(self.password)
-        cx = SamDB(url='ldap://localhost',lp=lp,credentials=badge)
+        cx = SamDB(url=self.URL,lp=lp,credentials=badge)
         self.domain=cx.domain_dn()
         return cx
-    def authenticate(self,usuario,password):
-        # Connect to samba and attempt to authenticate this user
-        print("SambaServer.authenticate: authenticating with %s" % usuario)
-        lp=param.LoadParm()
-        badge=Credentials()
-        badge.guess(lp)
-        badge.set_username(usuario)
-        badge.set_password(password)
-        # Intento la conexion.
-        cx=SamDB(url='ldap://localhost',lp=lp,credentials=badge)
-        print("cx returned: %s" % cx)
-        # Get the domain from the SamDB and store it
-        self.domain=cx.domain_dn()
-        # Listo, la gracia es que si logre autenticarme con estos datos, y hay algun
-        # resultado de mis acciones, voy a devolver algo. 
-        return cx
+
+    def es_miembro_de_alguno(self, group_sids):
+        """True if the logged-in user belongs, directly or through nested
+        groups, to any of the groups whose SIDs are given."""
+        cx = self.conectar()
+        # On the rootDSE, tokenGroups lists the groups of the bound user.
+        result = cx.search("", scope=ldb.SCOPE_BASE, attrs=["tokenGroups"])
+        user_sids = set(
+            str(ndr_unpack(security.dom_sid, value))
+            for value in result[0].get("tokenGroups", []))
+        return bool(user_sids & set(group_sids))
+
     def listar_usuarios(self):
         # Aca se conectaria con el server en localhost y devolveria la lista de usuarios.
         # Search...

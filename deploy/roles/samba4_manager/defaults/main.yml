@@ -58,6 +58,15 @@ samba4_manager_selinux_allow_proxy: true
 samba4_manager_session_secret: ""
 samba4_manager_auth_secret: ""
 
+# Minutes of inactivity after which users must log in again. Credentials are
+# kept only in the application's memory, so restarting it also logs everyone out.
+samba4_manager_session_timeout_minutes: 30
+
+# SIDs of the groups whose members may log in. The default is
+# BUILTIN\Administrators, which includes Domain Admins and Enterprise Admins.
+samba4_manager_admin_group_sids:
+  - S-1-5-32-544
+
 # Log level for the application (DEBUG, INFO, WARN, ERROR). Logs go to the journal.
 samba4_manager_log_level: WARN
 

@@ -14,6 +14,10 @@ samba4_manager.session_secret = {{ _s4m_session_secret }}
 samba4_manager.auth_secret = {{ _s4m_auth_secret }}
 # Apache serves the app over HTTPS only, so cookies are marked "secure".
 samba4_manager.secure_cookies = true
+# Minutes of inactivity after which users must log in again.
+samba4_manager.session_timeout = {{ (samba4_manager_session_timeout_minutes | int) * 60 }}
+# SIDs of the groups whose members may log in.
+samba4_manager.admin_groups = {{ samba4_manager_admin_group_sids | join(' ') }}
 
 [server:main]
 use = egg:waitress#main

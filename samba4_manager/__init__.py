@@ -2,15 +2,15 @@ import logging
 import secrets
 
 from pyramid.config import Configurator
-from pyramid.settings import asbool
+from pyramid.settings import asbool, aslist
 from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.session import SignedCookieSessionFactory
-from samba_server import SambaServer
+from samba_server import SambaServer, BUILTIN_ADMINISTRATORS_SID
 from .views import SambaAdminPermissions 
 from .authorization import SambaAdminAuthenticationPolicy
 from .authentication import SambaSecurityPolicy
-from .model import User
+from .credentials import CredentialStore
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def main(global_config, **settings):
     config = Configurator(settings=settings,session_factory=samba_session_factory)
     config.include('pyramid_jinja2')
     config.add_static_view('static', 'samba4_manager:static')
-    config.add_request_method(get_user, 'user', reify=True)
+    config.add_request_method(get_samba_server, 'samba_server', reify=True)
     config.add_route('login','/login')
     config.add_route('logout','/logout')
     config.add_route('listar_usuarios', '/')
@@ -65,28 +65,26 @@ def main(global_config, **settings):
     #authz_policy = ACLAuthorizationPolicy()
     #config.set_authentication_policy(authn_policy)
     #config.set_authorization_policy(authz_policy)
+    # Credentials of the logged-in users, kept in memory per session.
+    credential_store = CredentialStore(
+        timeout=int(settings.get('samba4_manager.session_timeout', 1800)))
+    config.registry.credential_store = credential_store
+    # Only members of these groups (by SID) may log in.
+    config.registry.admin_group_sids = aslist(
+        settings.get('samba4_manager.admin_groups', BUILTIN_ADMINISTRATORS_SID))
     config.set_security_policy(SambaSecurityPolicy(
         _get_secret(settings, 'samba4_manager.auth_secret'),
+        credential_store,
         secure=secure_cookies))
     config.set_root_factory(lambda request: SambaAdminPermissions(request))
     config.scan()
     return config.make_wsgi_app()
 
-def get_user(request):
-    #print("get_user: el userid es %s" % request.userid)
-    if request.authorization is not None:
-        print("get_user: el userid no es None. Consulto Samba")
-        # Consulto el servidor de Samba con el user id del request.
-        server=SambaServer.getInstance()
-        user=server.search_user_by_userid(request.authorization)
-        # este nombre de grupo tendria que ser leido de la configuracion, pero primero probemos si 
-        # anda asi.
-        print("get_user: consulte el userid %s en Samba y me trajo el user %s" % (request.authorization,user))
-        if server.pertenece_grupo(user['samaccountname'], "CN=Administrators,CN=Builtin,DC=agusvillafane,DC=zapto,DC=org"):
-            print("get_user: el usuario que obtuve pertenece al grupo de administradores")
-            # Le impongo a user una lista de groups con el grupo admin.
-            userobject=User()
-            userobject.samaccountname=user['samaccountname']
-            userobject.groups=["admin"]
-            return userobject
-
+def get_samba_server(request):
+    """Return a SambaServer that acts with the logged-in user's own
+    credentials, or None if nobody is logged in."""
+    identity = request.identity
+    if identity is None:
+        return None
+    credentials = identity['credentials']
+    return SambaServer(credentials.username, credentials.password)

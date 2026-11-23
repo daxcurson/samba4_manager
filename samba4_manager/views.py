@@ -19,8 +19,8 @@ class SambaAdminViews(object):
         self.request = request
         self.logged_in = request.authenticated_userid
         self.samba_config=SambaConfigWriter()
-        self.samba_server=SambaServer.getInstance()
-        print("Samba Server at %s" % self.samba_server)
+        # Acts with the credentials of the logged-in user (None on the login page).
+        self.samba_server=request.samba_server
 
     @view_config(route_name='login', renderer='templates/login.jinja2')
     @forbidden_view_config(renderer='templates/login.jinja2')
@@ -39,18 +39,19 @@ class SambaAdminViews(object):
             print("samba4_manager: I'm in login, I received a form")
             login = request.params['inputUser']
             password = request.params['inputPassword']
-            # I'll need to load the SambaServer object with username and password!
-            self.samba_server.set_authentication(login, password)
             print("samba4_manager: attempting to authenticate with %s" % login)
-            cx=self.samba_server.authenticate(login, password)
-            if(cx is not None):
-                print("samba4_manager: login, search for user was successful")
-                headers = remember(request, login)
+            server=SambaServer.authenticate(login, password)
+            if server is None:
+                message = 'Failed login'
+            elif not server.es_miembro_de_alguno(request.registry.admin_group_sids):
+                print("samba4_manager: %s is not an administrator" % login)
+                message = 'Only domain administrators can use this application'
+            else:
+                print("samba4_manager: login successful for %s" % login)
+                # The password stays on the server, tied to this session only.
+                headers = remember(request, login, password=password)
                 return pyramid.httpexceptions.HTTPFound(location=came_from,
                                  headers=headers)
-            else:
-                print("cx was none. Server not invoked??????")
-            message = 'Failed login'
         else:
             print("samba4_manager: I still didn't receive the login form")
         return dict(
@@ -59,7 +60,6 @@ class SambaAdminViews(object):
             url=request.application_url + '/login',
             came_from=came_from,
             login=login,
-            password=password,
             )
 
     @view_config(route_name='logout')
